@@ -235,10 +235,82 @@ class Vii(App):
     def _get_syntax_lexer(self, path: Path) -> str | None:
         """Get the Pygments lexer name for a file based on extension."""
         extension_map = {
+            # Python
             ".py": "python",
             ".pyw": "python",
             ".pyi": "python",
+            # Shell
+            ".sh": "bash",
+            ".bash": "bash",
+            ".zsh": "zsh",
+            ".fish": "fish",
+            # Config files
+            ".toml": "toml",
+            ".yaml": "yaml",
+            ".yml": "yaml",
+            ".json": "json",
+            ".ini": "ini",
+            ".cfg": "ini",
+            ".conf": "ini",
+            # Markup
+            ".md": "markdown",
+            ".markdown": "markdown",
+            ".rst": "rst",
+            ".html": "html",
+            ".htm": "html",
+            ".xml": "xml",
+            ".css": "css",
+            # JavaScript / TypeScript
+            ".js": "javascript",
+            ".mjs": "javascript",
+            ".cjs": "javascript",
+            ".ts": "typescript",
+            ".tsx": "tsx",
+            ".jsx": "jsx",
+            # C family
+            ".c": "c",
+            ".h": "c",
+            ".cpp": "cpp",
+            ".cxx": "cpp",
+            ".cc": "cpp",
+            ".hpp": "cpp",
+            ".hxx": "cpp",
+            # Other languages
+            ".rs": "rust",
+            ".go": "go",
+            ".rb": "ruby",
+            ".java": "java",
+            ".kt": "kotlin",
+            ".swift": "swift",
+            ".php": "php",
+            ".sql": "sql",
+            ".r": "r",
+            ".R": "r",
+            ".lua": "lua",
+            ".pl": "perl",
+            ".pm": "perl",
+            # Data formats
+            ".csv": "text",
+            ".tsv": "text",
+            # Misc
+            ".dockerfile": "docker",
+            ".makefile": "make",
+            ".tex": "latex",
+            ".vim": "vim",
         }
+        # Handle special filenames without extensions
+        filename_map = {
+            "Dockerfile": "docker",
+            "Makefile": "make",
+            "CMakeLists.txt": "cmake",
+            ".bashrc": "bash",
+            ".bash_profile": "bash",
+            ".zshrc": "zsh",
+            ".gitignore": "ini",
+            ".editorconfig": "ini",
+        }
+        if path.name in filename_map:
+            return filename_map[path.name]
         return extension_map.get(path.suffix.lower())
 
     def _update_content_display(self) -> None:
