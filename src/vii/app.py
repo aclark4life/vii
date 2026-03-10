@@ -67,17 +67,27 @@ class Vii(App):
         padding: 1 2;
     }
 
-    #search-container {
+    #content-search-container {
         dock: bottom;
         height: auto;
         display: none;
     }
 
-    #search-container.visible {
+    #content-search-container.visible {
         display: block;
     }
 
-    #search-input {
+    #sidebar-search-container {
+        dock: bottom;
+        height: auto;
+        display: none;
+    }
+
+    #sidebar-search-container.visible {
+        display: block;
+    }
+
+    .search-input {
         width: 100%;
     }
 
@@ -115,11 +125,15 @@ class Vii(App):
         self.start_path = start_path or Path.cwd()
         self.editor_command = self._detect_editor()
         self.is_terminal_editor = self._is_terminal_editor()
-        # Search state
+        # Content search state
         self.search_query = ""
         self.search_matches: list[int] = []  # Line numbers with matches
         self.current_match_index = -1
         self.original_content = ""  # Content without highlighting
+        # Sidebar search state
+        self.sidebar_search_query = ""
+        self.sidebar_search_matches: list = []  # Tree nodes with matches
+        self.sidebar_current_match_index = -1
 
     def _detect_editor(self) -> list[str]:
         """Detect the user's preferred editor."""
@@ -175,6 +189,12 @@ class Vii(App):
 
         with Vertical(id="sidebar"):
             yield DirectoryTree(str(self.start_path))
+            with Horizontal(id="sidebar-search-container"):
+                yield Input(
+                    placeholder="Search files...",
+                    id="sidebar-search-input",
+                    classes="search-input",
+                )
 
         with Vertical(id="main-content"):
             with ScrollableContainer(id="content-scroll", can_focus=True):
@@ -185,8 +205,12 @@ class Vii(App):
                     "Press / to search in file content.",
                     id="content-display",
                 )
-            with Horizontal(id="search-container"):
-                yield Input(placeholder="Search...", id="search-input")
+            with Horizontal(id="content-search-container"):
+                yield Input(
+                    placeholder="Search in file...",
+                    id="content-search-input",
+                    classes="search-input",
+                )
 
         yield Footer()
 
@@ -334,9 +358,9 @@ class Vii(App):
                 tree.action_page_up()
                 self._update_content_display()
         elif content_focused and event.key == "slash":
-            # Open search
+            # Open content search
             event.prevent_default()
-            self._show_search()
+            self._show_content_search()
         elif content_focused and event.key == "n":
             # Next search match
             event.prevent_default()
@@ -348,7 +372,7 @@ class Vii(App):
         elif content_focused and event.key == "escape":
             # Clear search and highlights
             event.prevent_default()
-            self._hide_search(clear_highlights=True)
+            self._hide_content_search(clear_highlights=True)
             self.search_matches = []
             self.current_match_index = -1
             self.search_query = ""
@@ -356,23 +380,138 @@ class Vii(App):
             # Open file in editor (same as 'e')
             event.prevent_default()
             self.action_edit_file()
+        elif not content_focused and event.key == "slash":
+            # Open sidebar search
+            event.prevent_default()
+            self._show_sidebar_search()
+        elif not content_focused and event.key == "n":
+            # Next sidebar search match
+            event.prevent_default()
+            self._goto_next_sidebar_match()
+        elif not content_focused and event.key == "N":
+            # Previous sidebar search match
+            event.prevent_default()
+            self._goto_previous_sidebar_match()
+        elif not content_focused and event.key == "escape":
+            # Clear sidebar search
+            event.prevent_default()
+            self._hide_sidebar_search()
+            self.sidebar_search_matches = []
+            self.sidebar_current_match_index = -1
+            self.sidebar_search_query = ""
 
-    def _show_search(self) -> None:
-        """Show the search input."""
-        search_container = self.query_one("#search-container")
+    def _show_content_search(self) -> None:
+        """Show the content search input."""
+        search_container = self.query_one("#content-search-container")
         search_container.add_class("visible")
-        search_input = self.query_one("#search-input", Input)
+        search_input = self.query_one("#content-search-input", Input)
         search_input.value = self.search_query
         search_input.focus()
 
-    def _hide_search(self, clear_highlights: bool = False) -> None:
-        """Hide the search input."""
-        search_container = self.query_one("#search-container")
+    def _hide_content_search(self, clear_highlights: bool = False) -> None:
+        """Hide the content search input."""
+        search_container = self.query_one("#content-search-container")
         search_container.remove_class("visible")
         scroll_container = self.query_one("#content-scroll", ScrollableContainer)
         scroll_container.focus()
         if clear_highlights:
             self._clear_search_highlights()
+
+    def _show_sidebar_search(self) -> None:
+        """Show the sidebar search input."""
+        search_container = self.query_one("#sidebar-search-container")
+        search_container.add_class("visible")
+        search_input = self.query_one("#sidebar-search-input", Input)
+        search_input.value = self.sidebar_search_query
+        search_input.focus()
+
+    def _hide_sidebar_search(self) -> None:
+        """Hide the sidebar search input."""
+        search_container = self.query_one("#sidebar-search-container")
+        search_container.remove_class("visible")
+        tree = self.query_one(DirectoryTree)
+        tree.focus()
+
+    def _perform_sidebar_search(self, query: str) -> None:
+        """Search for files/directories matching query."""
+        if not query:
+            self.sidebar_search_matches = []
+            self.sidebar_current_match_index = -1
+            return
+
+        self.sidebar_search_query = query
+        tree = self.query_one(DirectoryTree)
+
+        # Find all nodes matching the query
+        self.sidebar_search_matches = []
+
+        def search_nodes(node):
+            """Recursively search tree nodes."""
+            if node.data and hasattr(node.data, "path"):
+                name = node.data.path.name.lower()
+                if query.lower() in name:
+                    self.sidebar_search_matches.append(node)
+            for child in node.children:
+                search_nodes(child)
+
+        search_nodes(tree.root)
+
+        if not self.sidebar_search_matches:
+            self.notify(f"No files matching: {query}", severity="warning")
+            return
+
+        # Go to first match
+        self.sidebar_current_match_index = 0
+        self._goto_sidebar_match(self.sidebar_current_match_index)
+        self.notify(f"Found {len(self.sidebar_search_matches)} match(es)")
+
+    def _goto_sidebar_match(self, index: int) -> None:
+        """Navigate to a specific sidebar search match."""
+        if not self.sidebar_search_matches:
+            return
+
+        node = self.sidebar_search_matches[index]
+        tree = self.query_one(DirectoryTree)
+
+        # Expand parent nodes to make the match visible
+        parent = node.parent
+        while parent:
+            parent.expand()
+            parent = parent.parent
+
+        # Select the node
+        tree.select_node(node)
+        self._update_content_display()
+
+    def _goto_next_sidebar_match(self) -> None:
+        """Go to the next sidebar search match."""
+        if not self.sidebar_search_matches:
+            if self.sidebar_search_query:
+                self.notify("No matches to navigate", severity="warning")
+            return
+
+        self.sidebar_current_match_index = (self.sidebar_current_match_index + 1) % len(
+            self.sidebar_search_matches
+        )
+        self._goto_sidebar_match(self.sidebar_current_match_index)
+        self.notify(
+            f"Match {self.sidebar_current_match_index + 1}/{len(self.sidebar_search_matches)}"
+        )
+
+    def _goto_previous_sidebar_match(self) -> None:
+        """Go to the previous sidebar search match."""
+        if not self.sidebar_search_matches:
+            if self.sidebar_search_query:
+                self.notify("No matches to navigate", severity="warning")
+            return
+
+        self.sidebar_current_match_index = (self.sidebar_current_match_index - 1) % len(
+            self.sidebar_search_matches
+        )
+        self._goto_sidebar_match(self.sidebar_current_match_index)
+        self.notify(
+            f"Match {self.sidebar_current_match_index + 1}/{len(self.sidebar_search_matches)}"
+        )
 
     def _clear_search_highlights(self) -> None:
         """Remove search highlighting from content."""
@@ -512,9 +651,12 @@ class Vii(App):
 
     def on_input_submitted(self, event: Input.Submitted) -> None:
         """Handle search input submission."""
-        if event.input.id == "search-input":
+        if event.input.id == "content-search-input":
             self._perform_search(event.value)
-            self._hide_search()
+            self._hide_content_search()
+        elif event.input.id == "sidebar-search-input":
+            self._perform_sidebar_search(event.value)
+            self._hide_sidebar_search()
 
     def action_page_up(self) -> None:
         """Scroll the content panel up by one page."""
