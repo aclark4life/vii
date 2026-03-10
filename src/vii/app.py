@@ -352,6 +352,10 @@ class Vii(App):
             self.search_matches = []
             self.current_match_index = -1
             self.search_query = ""
+        elif content_focused and event.key == "enter":
+            # Open file in editor (same as 'e')
+            event.prevent_default()
+            self.action_edit_file()
 
     def _show_search(self) -> None:
         """Show the search input."""
