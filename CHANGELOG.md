@@ -7,7 +7,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-## [0.1.0a2] - Unreleased
+## [0.1.0a2] - 2026-03-10
 
 ### Added
 
@@ -30,6 +30,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `e` key to edit selected file
 - `Ctrl+F/B` for page up/down navigation in sidebar
 - Draggable splitter between sidebar and content panels for resizable layout
+- Syntax highlighting theme syncs with Textual app theme (dark/light)
 
 ### Changed
 
