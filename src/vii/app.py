@@ -327,9 +327,17 @@ class Vii(App):
                 elif action_key == "up":
                     tree.action_cursor_up()
                 elif action_key == "left":
-                    tree.action_cursor_left()
+                    # Collapse current node or move to parent
+                    if tree.cursor_node and tree.cursor_node.is_expanded:
+                        tree.cursor_node.collapse()
+                    else:
+                        tree.action_cursor_parent()
                 elif action_key == "right":
-                    tree.action_cursor_right()
+                    # Expand current node or move down
+                    if tree.cursor_node and not tree.cursor_node.is_expanded:
+                        tree.cursor_node.expand()
+                    else:
+                        tree.action_cursor_down()
                 elif action_key == "home":
                     tree.action_scroll_home()
                 elif action_key == "end":
