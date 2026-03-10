@@ -10,7 +10,7 @@ readme = "README.md"
 requires-python = ">=3.10"
 license = {text = "MIT"}
 authors = [
-    {name = "Alex Clark"},
+    {name = "Jeffrey 'Alex' Clark"},
 ]
 dependencies = [
     "textual>=0.50.0",
