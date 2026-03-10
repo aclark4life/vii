@@ -1,5 +1,7 @@
 # vii
 
+[![CI/CD](https://github.com/aclark4life/vii/actions/workflows/workflow.yml/badge.svg)](https://github.com/aclark4life/vii/actions/workflows/workflow.yml)
+
 A terminal-based file browser that opens selected files in your preferred editor.
 
 ## Features
