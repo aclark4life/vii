@@ -12,7 +12,7 @@ A terminal-based file browser that opens selected files in your preferred editor
 ## Installation
 
 ```bash
-pip install -e .
+pipx install vii
 ```
 
 For development:
