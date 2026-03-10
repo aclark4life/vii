@@ -299,6 +299,9 @@ class Vii(App):
         initial_width = max(20, self.size.width // 3)
         self.sidebar_width = initial_width
 
+        # Subscribe to theme changes to update syntax highlighting
+        self.theme_changed_signal.subscribe(self, self._on_theme_changed)
+
     def _read_file_content(self, path: Path, max_size: int = 100000) -> str:
         """Read file content, handling binary files and size limits."""
         try:
@@ -352,8 +355,12 @@ class Vii(App):
         except Exception:
             return "monokai"
 
-    def watch_theme(self, theme: str) -> None:
-        """React to theme changes by updating the content display."""
+    def _on_theme_changed(self, theme: object) -> None:
+        """React to theme changes by updating the content display.
+
+        Args:
+            theme: The new Theme object (from theme_changed_signal).
+        """
         # Re-render the content with the new syntax theme
         self._update_content_display()
 
