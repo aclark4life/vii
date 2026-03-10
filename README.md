@@ -15,12 +15,6 @@ A terminal-based file browser that opens selected files in your preferred editor
 pipx install vii
 ```
 
-For development:
-
-```bash
-pip install -e ".[dev]"
-```
-
 ## Usage
 
 Run vii from any directory:
@@ -61,6 +55,12 @@ vii automatically detects your preferred editor by checking:
 - **Terminal Editors** (vim, nvim, nano, etc.): vii suspends and the editor takes over full screen. When you quit the editor, vii resumes automatically
 
 ## Development
+
+```bash
+git clone https://github.com/aclark4life/vii
+cd vii
+pip install -e ".[dev]"
+```
 
 Run with Textual's development console:
 
