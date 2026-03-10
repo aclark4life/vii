@@ -8,7 +8,7 @@ from pathlib import Path
 from textual import events
 from textual.app import App, ComposeResult
 from textual.binding import Binding
-from textual.containers import Horizontal, Vertical
+from textual.containers import Vertical
 from textual.widgets import DirectoryTree, Footer, Header, Static
 
 
@@ -33,7 +33,6 @@ class Vii(App):
     #main-content {
         width: 100%;
         height: 100%;
-        padding: 1 2;
     }
 
     DirectoryTree {
@@ -44,6 +43,10 @@ class Vii(App):
     .info-text {
         color: $text-muted;
         text-style: italic;
+    }
+
+    #content-display {
+        padding: 2;
     }
     """
 
@@ -122,19 +125,35 @@ class Vii(App):
         """Compose the UI."""
         yield Header()
 
-        with Horizontal():
-            with Vertical(id="sidebar"):
-                yield DirectoryTree(str(self.start_path))
+        with Vertical(id="sidebar"):
+            yield DirectoryTree(str(self.start_path))
 
-            with Vertical(id="main-content"):
-                editor_type = "terminal" if self.is_terminal_editor else "GUI"
-                yield Static(
-                    "Select a file from the tree to open it in your editor.\n\n"
-                    f"Editor: {' '.join(self.editor_command)} ({editor_type})",
-                    classes="info-text",
-                )
+        with Vertical(id="main-content"):
+            yield Static(
+                "📁 Navigate with j/k to see folder/file icons",
+                id="content-display",
+            )
 
         yield Footer()
+
+    def _update_content_display(self) -> None:
+        """Update the content display based on the currently highlighted tree node."""
+        try:
+            tree = self.query_one(DirectoryTree)
+            if tree.cursor_node and tree.cursor_node.data:
+                path = tree.cursor_node.data.path
+                content_display = self.query_one("#content-display", Static)
+
+                if path.is_dir():
+                    # Display folder icon for directories
+                    content_display.update(
+                        f"[bold]📁[/bold]\n\n[dim]Directory[/dim]\n\n{path.name}"
+                    )
+                else:
+                    # For files, show file icon and name
+                    content_display.update(f"[bold]📄[/bold]\n\n[dim]File[/dim]\n\n{path.name}")
+        except Exception:
+            pass
 
     def on_key(self, event: events.Key) -> None:
         """Handle key presses for vi-style navigation."""
@@ -167,6 +186,9 @@ class Vii(App):
                 tree.action_scroll_home()
             elif action_key == "end":
                 tree.action_scroll_end()
+
+            # Update the content display after cursor movement
+            self._update_content_display()
 
     def on_directory_tree_file_selected(self, event: DirectoryTree.FileSelected) -> None:
         """Handle file selection from the directory tree."""
