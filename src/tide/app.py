@@ -67,6 +67,7 @@ class TideIDE(App):
         super().__init__()
         self.start_path = start_path or Path.cwd()
         self.editor_command = self._detect_editor()
+        self.is_terminal_editor = self._is_terminal_editor()
 
     def _detect_editor(self) -> list[str]:
         """Detect the user's preferred editor."""
@@ -76,10 +77,10 @@ class TideIDE(App):
             editor = subprocess.os.environ.get(env_var)
             if editor:
                 break
-        
+
         if not editor:
-            # Try common editors
-            for cmd in ["code", "subl", "atom", "vim", "nano"]:
+            # Try common GUI editors first, then terminal editors
+            for cmd in ["code", "subl", "atom", "vim", "nvim", "nano"]:
                 try:
                     subprocess.run(
                         ["which", cmd],
@@ -90,8 +91,21 @@ class TideIDE(App):
                     break
                 except subprocess.CalledProcessError:
                     continue
-        
+
         return [editor] if editor else ["open"]
+
+    def _is_terminal_editor(self) -> bool:
+        """Check if the detected editor is a terminal-based editor."""
+        if not self.editor_command:
+            return False
+
+        terminal_editors = {
+            "vim", "nvim", "vi", "nano", "emacs", "micro",
+            "helix", "hx", "joe", "ne", "ed", "ex"
+        }
+
+        editor_name = Path(self.editor_command[0]).name
+        return editor_name in terminal_editors
 
     def compose(self) -> ComposeResult:
         """Compose the UI."""
@@ -102,9 +116,10 @@ class TideIDE(App):
                 yield DirectoryTree(str(self.start_path))
             
             with Vertical(id="main-content"):
+                editor_type = "terminal" if self.is_terminal_editor else "GUI"
                 yield Static(
                     "Select a file from the tree to open it in your editor.\n\n"
-                    f"Editor: {' '.join(self.editor_command)}",
+                    f"Editor: {' '.join(self.editor_command)} ({editor_type})",
                     classes="info-text"
                 )
         
@@ -151,9 +166,34 @@ class TideIDE(App):
 
     def _open_in_editor(self, file_path: Path) -> None:
         """Open a file in the user's editor."""
+        if self.is_terminal_editor:
+            self._open_in_terminal_editor(file_path)
+        else:
+            self._open_in_gui_editor(file_path)
+
+    def _open_in_terminal_editor(self, file_path: Path) -> None:
+        """Open a file in a terminal editor by suspending the app."""
+        try:
+            # Suspend the Textual app to give control back to the terminal
+            with self.suspend():
+                # Run the editor and wait for it to complete
+                result = subprocess.run(
+                    [*self.editor_command, str(file_path)],
+                )
+                if result.returncode != 0:
+                    self.notify(
+                        f"Editor exited with code {result.returncode}",
+                        severity="warning"
+                    )
+        except Exception as e:
+            self.notify(f"Error opening file: {e}", severity="error")
+
+    def _open_in_gui_editor(self, file_path: Path) -> None:
+        """Open a file in a GUI editor (non-blocking)."""
         try:
             subprocess.Popen(
                 [*self.editor_command, str(file_path)],
+                stdin=subprocess.DEVNULL,
                 stdout=subprocess.DEVNULL,
                 stderr=subprocess.DEVNULL,
             )

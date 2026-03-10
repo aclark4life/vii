@@ -52,8 +52,13 @@ Vi-style navigation (arrow keys also work):
 Tide automatically detects your preferred editor by checking:
 1. `$VISUAL` environment variable
 2. `$EDITOR` environment variable
-3. Common editors: `code`, `subl`, `atom`, `vim`, `nano`
+3. Common editors: `code`, `subl`, `atom`, `vim`, `nvim`, `nano`
 4. Falls back to `open` (macOS default)
+
+### Editor Behavior
+
+- **GUI Editors** (VS Code, Sublime, etc.): Opens in the background while Tide continues running
+- **Terminal Editors** (vim, nvim, nano, etc.): Tide suspends and the editor takes over full screen. When you quit the editor, Tide resumes automatically
 
 ## Development
 
