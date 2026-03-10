@@ -8,7 +8,7 @@ from pathlib import Path
 from textual import events
 from textual.app import App, ComposeResult
 from textual.binding import Binding
-from textual.containers import Vertical
+from textual.containers import ScrollableContainer, Vertical
 from textual.widgets import DirectoryTree, Footer, Header, Static
 
 
@@ -40,19 +40,34 @@ class Vii(App):
         height: 100%;
     }
 
+    DirectoryTree:focus {
+        border: solid $primary;
+    }
+
     .info-text {
         color: $text-muted;
         text-style: italic;
     }
 
+    #content-scroll {
+        width: 100%;
+        height: 100%;
+    }
+
+    #content-scroll:focus {
+        border: solid $primary;
+    }
+
     #content-display {
-        padding: 2;
+        padding: 1 2;
     }
     """
 
     BINDINGS = [
         Binding("q", "quit", "Quit", priority=True),
         Binding("ctrl+c", "quit", "Quit", show=False),
+        Binding("tab", "focus_next", "Tab", show=False),
+        Binding("shift+tab", "focus_previous", "Shift+Tab", show=False),
         # Vi-style navigation (shown in footer)
         Binding("j", "cursor_down", "Down"),
         Binding("k", "cursor_up", "Up"),
@@ -65,6 +80,9 @@ class Vii(App):
         Binding("up", "cursor_up", "Up", show=False),
         Binding("left", "cursor_left", "Left", show=False),
         Binding("right", "cursor_right", "Right", show=False),
+        # Page navigation for content panel
+        Binding("pageup", "page_up", "Page Up", show=False),
+        Binding("pagedown", "page_down", "Page Down", show=False),
     ]
 
     def __init__(self, start_path: Path | None = None):
@@ -129,10 +147,13 @@ class Vii(App):
             yield DirectoryTree(str(self.start_path))
 
         with Vertical(id="main-content"):
-            yield Static(
-                "📁 Navigate with j/k to see folder/file icons",
-                id="content-display",
-            )
+            with ScrollableContainer(id="content-scroll", can_focus=True):
+                yield Static(
+                    "📁 Navigate with j/k to see folder/file icons\n\n"
+                    "Press Tab to switch focus between panels.\n"
+                    "Use Page Up/Down or mouse wheel to scroll content.",
+                    id="content-display",
+                )
 
         yield Footer()
 
@@ -161,6 +182,7 @@ class Vii(App):
             if tree.cursor_node and tree.cursor_node.data:
                 path = tree.cursor_node.data.path
                 content_display = self.query_one("#content-display", Static)
+                scroll_container = self.query_one("#content-scroll", ScrollableContainer)
 
                 if path.is_dir():
                     # Display folder icon for directories
@@ -169,12 +191,19 @@ class Vii(App):
                     # For files, show file icon, name, and contents
                     content = self._read_file_content(path)
                     content_display.update(f"[bold]📄 {path.name}[/bold]\n\n{content}")
+
+                # Reset scroll position to top when content changes
+                scroll_container.scroll_home(animate=False)
         except Exception:
             pass
 
     def on_key(self, event: events.Key) -> None:
         """Handle key presses for vi-style navigation."""
         tree = self.query_one(DirectoryTree)
+        scroll_container = self.query_one("#content-scroll", ScrollableContainer)
+
+        # Check if content panel has focus
+        content_focused = scroll_container.has_focus
 
         # Map vi keys to actions
         key_map = {
@@ -186,33 +215,63 @@ class Vii(App):
             "G": "end",
         }
 
-        # Arrow keys that should also update the display
+        # Arrow keys
         arrow_keys = {"up", "down", "left", "right"}
 
         if event.key in key_map:
-            # Prevent the key from being processed further
             event.prevent_default()
-            # Simulate the corresponding arrow key or action
             action_key = key_map[event.key]
-            if action_key == "down":
-                tree.action_cursor_down()
-            elif action_key == "up":
-                tree.action_cursor_up()
-            elif action_key == "left":
-                tree.action_cursor_left()
-            elif action_key == "right":
-                tree.action_cursor_right()
-            elif action_key == "home":
-                tree.action_scroll_home()
-            elif action_key == "end":
-                tree.action_scroll_end()
 
-            # Update the content display after cursor movement
-            self._update_content_display()
-        elif event.key in arrow_keys:
+            if content_focused:
+                # Control the content scroll panel
+                if action_key == "down":
+                    scroll_container.scroll_down()
+                elif action_key == "up":
+                    scroll_container.scroll_up()
+                elif action_key == "home":
+                    scroll_container.scroll_home()
+                elif action_key == "end":
+                    scroll_container.scroll_end()
+                # h/l do nothing in content panel
+            else:
+                # Control the directory tree
+                if action_key == "down":
+                    tree.action_cursor_down()
+                elif action_key == "up":
+                    tree.action_cursor_up()
+                elif action_key == "left":
+                    tree.action_cursor_left()
+                elif action_key == "right":
+                    tree.action_cursor_right()
+                elif action_key == "home":
+                    tree.action_scroll_home()
+                elif action_key == "end":
+                    tree.action_scroll_end()
+
+                # Update the content display after cursor movement
+                self._update_content_display()
+        elif event.key in arrow_keys and not content_focused:
             # Arrow keys are handled by the tree widget, but we still need to update display
             # Use call_after_refresh to ensure the tree has processed the key first
             self.call_after_refresh(self._update_content_display)
+        elif content_focused and event.key in ("ctrl+f", "ctrl+d"):
+            # Page down in content panel (vim-style)
+            event.prevent_default()
+            scroll_container.scroll_page_down()
+        elif content_focused and event.key in ("ctrl+b", "ctrl+u"):
+            # Page up in content panel (vim-style)
+            event.prevent_default()
+            scroll_container.scroll_page_up()
+
+    def action_page_up(self) -> None:
+        """Scroll the content panel up by one page."""
+        scroll_container = self.query_one("#content-scroll", ScrollableContainer)
+        scroll_container.scroll_page_up()
+
+    def action_page_down(self) -> None:
+        """Scroll the content panel down by one page."""
+        scroll_container = self.query_one("#content-scroll", ScrollableContainer)
+        scroll_container.scroll_page_down()
 
     def on_directory_tree_file_selected(self, event: DirectoryTree.FileSelected) -> None:
         """Handle file selection from the directory tree."""
