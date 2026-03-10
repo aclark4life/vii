@@ -72,4 +72,3 @@ textual run --dev src/tide/app.py
 ## License
 
 MIT
-

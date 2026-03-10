@@ -3,7 +3,7 @@
 import os
 import subprocess
 from pathlib import Path
-from unittest.mock import MagicMock, Mock, patch
+from unittest.mock import Mock, patch
 
 import pytest
 from textual.widgets import DirectoryTree
@@ -105,8 +105,7 @@ class TestTideIDE:
 
         # Verify notification was sent
         app.notify.assert_called_once_with(
-            f"Opened: {test_file.name}",
-            severity="information"
+            f"Opened: {test_file.name}", severity="information"
         )
 
     @patch("subprocess.run")
@@ -126,7 +125,7 @@ class TestTideIDE:
         app.notify = Mock()
 
         # Mock the suspend method to avoid actually suspending
-        with patch.object(app, 'suspend') as mock_suspend:
+        with patch.object(app, "suspend") as mock_suspend:
             mock_suspend.return_value.__enter__ = Mock()
             mock_suspend.return_value.__exit__ = Mock(return_value=False)
 
@@ -151,7 +150,7 @@ class TestTideIDE:
         app.is_terminal_editor = True
         app.notify = Mock()
 
-        with patch.object(app, 'suspend') as mock_suspend:
+        with patch.object(app, "suspend") as mock_suspend:
             mock_suspend.return_value.__enter__ = Mock()
             mock_suspend.return_value.__exit__ = Mock(return_value=False)
 
@@ -190,20 +189,23 @@ class TestTideIDE:
     async def test_compose(self, tmp_path):
         """Test UI composition."""
         app = TideIDE(start_path=tmp_path)
-        async with app.run_test() as pilot:
+        async with app.run_test():
             # Check that the directory tree is present
             tree = app.query_one(DirectoryTree)
             assert tree is not None
 
             # Check that the static info text is present
             from textual.widgets import Static
+
             statics = app.query(Static)
             # Should have at least one Static widget with our info text
             assert len(statics) > 0
             # Find the one with our text
             found_info_text = False
             for static in statics:
-                if hasattr(static, 'render') and "Select a file" in str(static.render()):
+                if hasattr(static, "render") and "Select a file" in str(
+                    static.render()
+                ):
                     found_info_text = True
                     break
             assert found_info_text
@@ -213,16 +215,16 @@ class TestTideIDE:
         # Create a test file
         test_file = tmp_path / "test.txt"
         test_file.write_text("test content")
-        
+
         app = TideIDE(start_path=tmp_path)
-        
+
         with patch.object(app, "_open_in_editor") as mock_open:
-            async with app.run_test() as pilot:
+            async with app.run_test():
                 # Simulate file selection
                 tree = app.query_one(DirectoryTree)
                 event = DirectoryTree.FileSelected(tree, test_file)
                 app.on_directory_tree_file_selected(event)
-                
+
                 # Verify _open_in_editor was called
                 mock_open.assert_called_once_with(test_file)
 
@@ -235,10 +237,10 @@ class TestMain:
         """Test main function with default path."""
         mock_app = Mock()
         mock_tide_class.return_value = mock_app
-        
+
         with patch("sys.argv", ["tide"]):
             main()
-        
+
         mock_tide_class.assert_called_once()
         call_args = mock_tide_class.call_args
         assert call_args[1]["start_path"] == Path.cwd()
@@ -249,10 +251,10 @@ class TestMain:
         """Test main function with custom path."""
         mock_app = Mock()
         mock_tide_class.return_value = mock_app
-        
+
         with patch("sys.argv", ["tide", str(tmp_path)]):
             main()
-        
+
         mock_tide_class.assert_called_once()
         call_args = mock_tide_class.call_args
         assert call_args[1]["start_path"] == tmp_path
@@ -263,9 +265,8 @@ class TestMain:
         with patch("sys.argv", ["tide", "/nonexistent/path"]):
             with pytest.raises(SystemExit) as exc_info:
                 main()
-            
+
             assert exc_info.value.code == 1
-            
+
             captured = capsys.readouterr()
             assert "does not exist" in captured.err
-

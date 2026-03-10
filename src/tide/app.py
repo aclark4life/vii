@@ -1,14 +1,15 @@
 """Main application entry point for Tide (Textual IDE)."""
 
+import os
 import subprocess
 import sys
 from pathlib import Path
 
-from textual.app import App, ComposeResult
-from textual.containers import Container, Horizontal, Vertical
-from textual.widgets import DirectoryTree, Footer, Header, Static
-from textual.binding import Binding
 from textual import events
+from textual.app import App, ComposeResult
+from textual.binding import Binding
+from textual.containers import Horizontal, Vertical
+from textual.widgets import DirectoryTree, Footer, Header, Static
 
 
 class TideIDE(App):
@@ -74,7 +75,7 @@ class TideIDE(App):
         # Check common environment variables
         editor = None
         for env_var in ["VISUAL", "EDITOR"]:
-            editor = subprocess.os.environ.get(env_var)
+            editor = os.environ.get(env_var)
             if editor:
                 break
 
@@ -100,8 +101,18 @@ class TideIDE(App):
             return False
 
         terminal_editors = {
-            "vim", "nvim", "vi", "nano", "emacs", "micro",
-            "helix", "hx", "joe", "ne", "ed", "ex"
+            "vim",
+            "nvim",
+            "vi",
+            "nano",
+            "emacs",
+            "micro",
+            "helix",
+            "hx",
+            "joe",
+            "ne",
+            "ed",
+            "ex",
         }
 
         editor_name = Path(self.editor_command[0]).name
@@ -110,19 +121,19 @@ class TideIDE(App):
     def compose(self) -> ComposeResult:
         """Compose the UI."""
         yield Header()
-        
+
         with Horizontal():
             with Vertical(id="sidebar"):
                 yield DirectoryTree(str(self.start_path))
-            
+
             with Vertical(id="main-content"):
                 editor_type = "terminal" if self.is_terminal_editor else "GUI"
                 yield Static(
                     "Select a file from the tree to open it in your editor.\n\n"
                     f"Editor: {' '.join(self.editor_command)} ({editor_type})",
-                    classes="info-text"
+                    classes="info-text",
                 )
-        
+
         yield Footer()
 
     def on_key(self, event: events.Key) -> None:
@@ -183,7 +194,7 @@ class TideIDE(App):
                 if result.returncode != 0:
                     self.notify(
                         f"Editor exited with code {result.returncode}",
-                        severity="warning"
+                        severity="warning",
                     )
         except Exception as e:
             self.notify(f"Error opening file: {e}", severity="error")
@@ -216,4 +227,3 @@ def main():
 
 if __name__ == "__main__":
     main()
-
