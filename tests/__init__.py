@@ -1,1 +1,1 @@
-"""Tests for Tide (Textual IDE)."""
+"""Tests for vii."""

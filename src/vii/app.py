@@ -1,4 +1,4 @@
-"""Main application entry point for Tide (Textual IDE)."""
+"""Main application entry point for vii."""
 
 import os
 import subprocess
@@ -12,10 +12,10 @@ from textual.containers import Horizontal, Vertical
 from textual.widgets import DirectoryTree, Footer, Header, Static
 
 
-class TideIDE(App):
-    """Tide - Textual IDE with file browser."""
+class Vii(App):
+    """vii - Terminal file browser."""
 
-    TITLE = "Tide (Textual IDE)"
+    TITLE = "vii"
 
     CSS = """
     Screen {
@@ -221,7 +221,7 @@ def main():
         print(f"Error: Path '{start_path}' does not exist", file=sys.stderr)
         sys.exit(1)
 
-    app = TideIDE(start_path=start_path)
+    app = Vii(start_path=start_path)
     app.run()
 
 

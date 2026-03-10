@@ -3,9 +3,9 @@ requires = ["hatchling"]
 build-backend = "hatchling.build"
 
 [project]
-name = "tide"
+name = "vii"
 version = "0.1.0"
-description = "Textual IDE - A terminal-based IDE with file browser that opens files in your editor"
+description = "vii - A terminal-based file browser that opens files in your editor"
 readme = "README.md"
 requires-python = ">=3.10"
 license = {text = "MIT"}
@@ -30,10 +30,10 @@ dev = [
 ]
 
 [project.scripts]
-tide = "tide.app:main"
+vii = "vii.app:main"
 
 [tool.hatch.build.targets.wheel]
-packages = ["src/tide"]
+packages = ["src/vii"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

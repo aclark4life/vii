@@ -1,6 +1,6 @@
-# Tide (Textual IDE)
+# vii
 
-A terminal-based IDE with a file browser that opens selected files in your preferred editor.
+A terminal-based file browser that opens selected files in your preferred editor.
 
 ## Features
 
@@ -23,16 +23,16 @@ pip install -e ".[dev]"
 
 ## Usage
 
-Run Tide from any directory:
+Run vii from any directory:
 
 ```bash
-tide
+vii
 ```
 
 Or specify a directory to browse:
 
 ```bash
-tide /path/to/project
+vii /path/to/project
 ```
 
 ## Keyboard Shortcuts
@@ -49,7 +49,7 @@ Vi-style navigation (arrow keys also work):
 
 ## Editor Detection
 
-Tide automatically detects your preferred editor by checking:
+vii automatically detects your preferred editor by checking:
 1. `$VISUAL` environment variable
 2. `$EDITOR` environment variable
 3. Common editors: `code`, `subl`, `atom`, `vim`, `nvim`, `nano`
@@ -57,8 +57,8 @@ Tide automatically detects your preferred editor by checking:
 
 ### Editor Behavior
 
-- **GUI Editors** (VS Code, Sublime, etc.): Opens in the background while Tide continues running
-- **Terminal Editors** (vim, nvim, nano, etc.): Tide suspends and the editor takes over full screen. When you quit the editor, Tide resumes automatically
+- **GUI Editors** (VS Code, Sublime, etc.): Opens in the background while vii continues running
+- **Terminal Editors** (vim, nvim, nano, etc.): vii suspends and the editor takes over full screen. When you quit the editor, vii resumes automatically
 
 ## Development
 
@@ -66,7 +66,7 @@ Run with Textual's development console:
 
 ```bash
 textual console
-textual run --dev src/tide/app.py
+textual run --dev src/vii/app.py
 ```
 
 ## License

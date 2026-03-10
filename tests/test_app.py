@@ -1,4 +1,4 @@
-"""Tests for the main Tide application."""
+"""Tests for the main vii application."""
 
 import os
 import subprocess
@@ -8,34 +8,34 @@ from unittest.mock import Mock, patch
 import pytest
 from textual.widgets import DirectoryTree
 
-from tide.app import TideIDE, main
+from vii.app import Vii, main
 
 
-class TestTideIDE:
-    """Test cases for the TideIDE class."""
+class TestVii:
+    """Test cases for the Vii class."""
 
     def test_init_with_default_path(self):
         """Test initialization with default path."""
-        app = TideIDE()
+        app = Vii()
         assert app.start_path == Path.cwd()
         assert isinstance(app.editor_command, list)
         assert len(app.editor_command) > 0
 
     def test_init_with_custom_path(self, tmp_path):
         """Test initialization with custom path."""
-        app = TideIDE(start_path=tmp_path)
+        app = Vii(start_path=tmp_path)
         assert app.start_path == tmp_path
 
     @patch.dict(os.environ, {"VISUAL": "vim"})
     def test_detect_editor_visual_env(self):
         """Test editor detection using VISUAL environment variable."""
-        app = TideIDE()
+        app = Vii()
         assert app.editor_command == ["vim"]
 
     @patch.dict(os.environ, {"EDITOR": "nano"}, clear=True)
     def test_detect_editor_editor_env(self):
         """Test editor detection using EDITOR environment variable."""
-        app = TideIDE()
+        app = Vii()
         assert app.editor_command == ["nano"]
 
     @patch.dict(os.environ, {}, clear=True)
@@ -44,7 +44,7 @@ class TestTideIDE:
         """Test editor detection using 'which' command for VS Code."""
         # First call to 'which code' succeeds
         mock_run.return_value = Mock(returncode=0)
-        app = TideIDE()
+        app = Vii()
         assert app.editor_command == ["code"]
 
     @patch.dict(os.environ, {}, clear=True)
@@ -53,30 +53,30 @@ class TestTideIDE:
         """Test editor detection fallback to 'open'."""
         # All 'which' commands fail
         mock_run.side_effect = subprocess.CalledProcessError(1, "which")
-        app = TideIDE()
+        app = Vii()
         assert app.editor_command == ["open"]
 
     def test_is_terminal_editor_vim(self):
         """Test detection of vim as terminal editor."""
-        app = TideIDE()
+        app = Vii()
         app.editor_command = ["vim"]
         assert app._is_terminal_editor() is True
 
     def test_is_terminal_editor_nvim(self):
         """Test detection of nvim as terminal editor."""
-        app = TideIDE()
+        app = Vii()
         app.editor_command = ["nvim"]
         assert app._is_terminal_editor() is True
 
     def test_is_terminal_editor_code(self):
         """Test detection of VS Code as GUI editor."""
-        app = TideIDE()
+        app = Vii()
         app.editor_command = ["code"]
         assert app._is_terminal_editor() is False
 
     def test_is_terminal_editor_with_path(self):
         """Test detection works with full paths."""
-        app = TideIDE()
+        app = Vii()
         app.editor_command = ["/usr/bin/vim"]
         assert app._is_terminal_editor() is True
 
@@ -86,7 +86,7 @@ class TestTideIDE:
         test_file = tmp_path / "test.txt"
         test_file.write_text("test content")
 
-        app = TideIDE(start_path=tmp_path)
+        app = Vii(start_path=tmp_path)
         app.editor_command = ["test-editor"]
         app.is_terminal_editor = False
 
@@ -117,7 +117,7 @@ class TestTideIDE:
         # Mock successful editor run
         mock_run.return_value = Mock(returncode=0)
 
-        app = TideIDE(start_path=tmp_path)
+        app = Vii(start_path=tmp_path)
         app.editor_command = ["vim"]
         app.is_terminal_editor = True
 
@@ -145,7 +145,7 @@ class TestTideIDE:
         # Mock editor run with non-zero exit
         mock_run.return_value = Mock(returncode=1)
 
-        app = TideIDE(start_path=tmp_path)
+        app = Vii(start_path=tmp_path)
         app.editor_command = ["vim"]
         app.is_terminal_editor = True
         app.notify = Mock()
@@ -171,7 +171,7 @@ class TestTideIDE:
         # Make Popen raise an exception
         mock_popen.side_effect = OSError("Editor not found")
 
-        app = TideIDE(start_path=tmp_path)
+        app = Vii(start_path=tmp_path)
         app.editor_command = ["nonexistent-editor"]
         app.is_terminal_editor = False
 
@@ -188,7 +188,7 @@ class TestTideIDE:
 
     async def test_compose(self, tmp_path):
         """Test UI composition."""
-        app = TideIDE(start_path=tmp_path)
+        app = Vii(start_path=tmp_path)
         async with app.run_test():
             # Check that the directory tree is present
             tree = app.query_one(DirectoryTree)
@@ -216,7 +216,7 @@ class TestTideIDE:
         test_file = tmp_path / "test.txt"
         test_file.write_text("test content")
 
-        app = TideIDE(start_path=tmp_path)
+        app = Vii(start_path=tmp_path)
 
         with patch.object(app, "_open_in_editor") as mock_open:
             async with app.run_test():
@@ -232,37 +232,37 @@ class TestTideIDE:
 class TestMain:
     """Test cases for the main entry point."""
 
-    @patch("tide.app.TideIDE")
-    def test_main_default_path(self, mock_tide_class):
+    @patch("vii.app.Vii")
+    def test_main_default_path(self, mock_vii_class):
         """Test main function with default path."""
         mock_app = Mock()
-        mock_tide_class.return_value = mock_app
+        mock_vii_class.return_value = mock_app
 
-        with patch("sys.argv", ["tide"]):
+        with patch("sys.argv", ["vii"]):
             main()
 
-        mock_tide_class.assert_called_once()
-        call_args = mock_tide_class.call_args
+        mock_vii_class.assert_called_once()
+        call_args = mock_vii_class.call_args
         assert call_args[1]["start_path"] == Path.cwd()
         mock_app.run.assert_called_once()
 
-    @patch("tide.app.TideIDE")
-    def test_main_custom_path(self, mock_tide_class, tmp_path):
+    @patch("vii.app.Vii")
+    def test_main_custom_path(self, mock_vii_class, tmp_path):
         """Test main function with custom path."""
         mock_app = Mock()
-        mock_tide_class.return_value = mock_app
+        mock_vii_class.return_value = mock_app
 
-        with patch("sys.argv", ["tide", str(tmp_path)]):
+        with patch("sys.argv", ["vii", str(tmp_path)]):
             main()
 
-        mock_tide_class.assert_called_once()
-        call_args = mock_tide_class.call_args
+        mock_vii_class.assert_called_once()
+        call_args = mock_vii_class.call_args
         assert call_args[1]["start_path"] == tmp_path
         mock_app.run.assert_called_once()
 
     def test_main_nonexistent_path(self, capsys):
         """Test main function with nonexistent path."""
-        with patch("sys.argv", ["tide", "/nonexistent/path"]):
+        with patch("sys.argv", ["vii", "/nonexistent/path"]):
             with pytest.raises(SystemExit) as exc_info:
                 main()
 
