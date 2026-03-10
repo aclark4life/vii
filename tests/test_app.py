@@ -80,8 +80,7 @@ class TestVii:
         app.editor_command = ["/usr/bin/vim"]
         assert app._is_terminal_editor() is True
 
-    @patch("subprocess.Popen")
-    def test_open_in_gui_editor_success(self, mock_popen, tmp_path):
+    def test_open_in_gui_editor_success(self, tmp_path):
         """Test successfully opening a file in GUI editor."""
         test_file = tmp_path / "test.txt"
         test_file.write_text("test content")
@@ -90,8 +89,11 @@ class TestVii:
         app.editor_command = ["test-editor"]
         app.is_terminal_editor = False
 
-        # Mock the notify method
-        with patch.object(app, "notify") as mock_notify:
+        # Mock Popen and notify after app initialization
+        with (
+            patch("subprocess.Popen") as mock_popen,
+            patch.object(app, "notify") as mock_notify,
+        ):
             app._open_in_editor(test_file)
 
             # Verify Popen was called with correct arguments
@@ -158,21 +160,23 @@ class TestVii:
             assert "exited with code" in call_args[0][0]
             assert call_args[1]["severity"] == "warning"
 
-    @patch("subprocess.Popen")
-    def test_open_in_gui_editor_failure(self, mock_popen, tmp_path):
+    def test_open_in_gui_editor_failure(self, tmp_path):
         """Test handling of GUI editor opening failure."""
         test_file = tmp_path / "test.txt"
         test_file.write_text("test content")
-
-        # Make Popen raise an exception
-        mock_popen.side_effect = OSError("Editor not found")
 
         app = Vii(start_path=tmp_path)
         app.editor_command = ["nonexistent-editor"]
         app.is_terminal_editor = False
 
-        # Mock the notify method
-        with patch.object(app, "notify") as mock_notify:
+        # Mock Popen to raise an exception and notify after app initialization
+        with (
+            patch("subprocess.Popen") as mock_popen,
+            patch.object(app, "notify") as mock_notify,
+        ):
+            # Make Popen raise an exception
+            mock_popen.side_effect = OSError("Editor not found")
+
             app._open_in_editor(test_file)
 
             # Verify error notification was sent
