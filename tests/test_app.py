@@ -91,22 +91,21 @@ class TestVii:
         app.is_terminal_editor = False
 
         # Mock the notify method
-        app.notify = Mock()
+        with patch.object(app, "notify") as mock_notify:
+            app._open_in_editor(test_file)
 
-        app._open_in_editor(test_file)
+            # Verify Popen was called with correct arguments
+            mock_popen.assert_called_once_with(
+                ["test-editor", str(test_file)],
+                stdin=subprocess.DEVNULL,
+                stdout=subprocess.DEVNULL,
+                stderr=subprocess.DEVNULL,
+            )
 
-        # Verify Popen was called with correct arguments
-        mock_popen.assert_called_once_with(
-            ["test-editor", str(test_file)],
-            stdin=subprocess.DEVNULL,
-            stdout=subprocess.DEVNULL,
-            stderr=subprocess.DEVNULL,
-        )
-
-        # Verify notification was sent
-        app.notify.assert_called_once_with(
-            f"Opened: {test_file.name}", severity="information"
-        )
+            # Verify notification was sent
+            mock_notify.assert_called_once_with(
+                f"Opened: {test_file.name}", severity="information"
+            )
 
     @patch("subprocess.run")
     def test_open_in_terminal_editor_success(self, mock_run, tmp_path):
@@ -121,9 +120,6 @@ class TestVii:
         app.editor_command = ["vim"]
         app.is_terminal_editor = True
 
-        # Mock the notify method and suspend context
-        app.notify = Mock()
-
         # Mock the suspend method to avoid actually suspending
         with patch.object(app, "suspend") as mock_suspend:
             mock_suspend.return_value.__enter__ = Mock()
@@ -131,9 +127,12 @@ class TestVii:
 
             app._open_in_editor(test_file)
 
-            # Verify subprocess.run was called
-            mock_run.assert_called_once_with(
-                ["vim", str(test_file)],
+            # Verify subprocess.run was called with the file
+            # Note: mock_run is called during __init__ for editor detection too
+            # So we check the last call
+            assert mock_run.call_args == (
+                (["vim", str(test_file)],),
+                {}
             )
 
     @patch("subprocess.run")
@@ -148,17 +147,17 @@ class TestVii:
         app = Vii(start_path=tmp_path)
         app.editor_command = ["vim"]
         app.is_terminal_editor = True
-        app.notify = Mock()
 
-        with patch.object(app, "suspend") as mock_suspend:
+        with patch.object(app, "suspend") as mock_suspend, \
+             patch.object(app, "notify") as mock_notify:
             mock_suspend.return_value.__enter__ = Mock()
             mock_suspend.return_value.__exit__ = Mock(return_value=False)
 
             app._open_in_editor(test_file)
 
             # Verify warning notification was sent
-            app.notify.assert_called_once()
-            call_args = app.notify.call_args
+            mock_notify.assert_called_once()
+            call_args = mock_notify.call_args
             assert "exited with code" in call_args[0][0]
             assert call_args[1]["severity"] == "warning"
 
@@ -176,15 +175,14 @@ class TestVii:
         app.is_terminal_editor = False
 
         # Mock the notify method
-        app.notify = Mock()
+        with patch.object(app, "notify") as mock_notify:
+            app._open_in_editor(test_file)
 
-        app._open_in_editor(test_file)
-
-        # Verify error notification was sent
-        app.notify.assert_called_once()
-        call_args = app.notify.call_args
-        assert "Error opening file" in call_args[0][0]
-        assert call_args[1]["severity"] == "error"
+            # Verify error notification was sent
+            mock_notify.assert_called_once()
+            call_args = mock_notify.call_args
+            assert "Error opening file" in call_args[0][0]
+            assert call_args[1]["severity"] == "error"
 
     async def test_compose(self, tmp_path):
         """Test UI composition."""
