@@ -7,6 +7,17 @@ on:
     branches: [main]
   release:
     types: [published]
+  workflow_dispatch:
+    inputs:
+      publish_to:
+        description: 'Where to publish the package'
+        required: true
+        type: choice
+        options:
+          - 'none'
+          - 'testpypi'
+          - 'pypi'
+        default: 'none'
 
 permissions:
   contents: read
@@ -42,7 +53,7 @@ jobs:
   build:
     name: Build distribution
     runs-on: ubuntu-latest
-    if: github.event_name == 'release'
+    if: github.event_name == 'release' || github.event_name == 'workflow_dispatch'
 
     steps:
       - uses: actions/checkout@v4
@@ -70,7 +81,7 @@ jobs:
     name: Publish to PyPI
     needs: [build]
     runs-on: ubuntu-latest
-    if: github.event_name == 'release'
+    if: github.event_name == 'release' || (github.event_name == 'workflow_dispatch' && github.event.inputs.publish_to == 'pypi')
 
     environment:
       name: pypi
@@ -93,7 +104,7 @@ jobs:
     name: Publish to TestPyPI
     needs: [build]
     runs-on: ubuntu-latest
-    if: github.event_name == 'release'
+    if: github.event_name == 'release' || (github.event_name == 'workflow_dispatch' && github.event.inputs.publish_to == 'testpypi')
 
     environment:
       name: testpypi
