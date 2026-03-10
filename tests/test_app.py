@@ -130,10 +130,7 @@ class TestVii:
             # Verify subprocess.run was called with the file
             # Note: mock_run is called during __init__ for editor detection too
             # So we check the last call
-            assert mock_run.call_args == (
-                (["vim", str(test_file)],),
-                {}
-            )
+            assert mock_run.call_args == ((["vim", str(test_file)],), {})
 
     @patch("subprocess.run")
     def test_open_in_terminal_editor_nonzero_exit(self, mock_run, tmp_path):
@@ -148,8 +145,10 @@ class TestVii:
         app.editor_command = ["vim"]
         app.is_terminal_editor = True
 
-        with patch.object(app, "suspend") as mock_suspend, \
-             patch.object(app, "notify") as mock_notify:
+        with (
+            patch.object(app, "suspend") as mock_suspend,
+            patch.object(app, "notify") as mock_notify,
+        ):
             mock_suspend.return_value.__enter__ = Mock()
             mock_suspend.return_value.__exit__ = Mock(return_value=False)
 
