@@ -1,15 +1,18 @@
 """Main application entry point for vii."""
 
 import os
+import re
 import subprocess
 import sys
 from pathlib import Path
 
+from rich.style import Style
+from rich.text import Text
 from textual import events
 from textual.app import App, ComposeResult
 from textual.binding import Binding
-from textual.containers import ScrollableContainer, Vertical
-from textual.widgets import DirectoryTree, Footer, Header, Static
+from textual.containers import Horizontal, ScrollableContainer, Vertical
+from textual.widgets import DirectoryTree, Footer, Header, Input, Static
 
 
 class Vii(App):
@@ -61,6 +64,25 @@ class Vii(App):
     #content-display {
         padding: 1 2;
     }
+
+    #search-container {
+        dock: bottom;
+        height: auto;
+        display: none;
+    }
+
+    #search-container.visible {
+        display: block;
+    }
+
+    #search-input {
+        width: 100%;
+    }
+
+    .search-match {
+        background: $warning;
+        color: $text;
+    }
     """
 
     BINDINGS = [
@@ -90,6 +112,11 @@ class Vii(App):
         self.start_path = start_path or Path.cwd()
         self.editor_command = self._detect_editor()
         self.is_terminal_editor = self._is_terminal_editor()
+        # Search state
+        self.search_query = ""
+        self.search_matches: list[int] = []  # Line numbers with matches
+        self.current_match_index = -1
+        self.original_content = ""  # Content without highlighting
 
     def _detect_editor(self) -> list[str]:
         """Detect the user's preferred editor."""
@@ -151,9 +178,12 @@ class Vii(App):
                 yield Static(
                     "📁 Navigate with j/k to see folder/file icons\n\n"
                     "Press Tab to switch focus between panels.\n"
-                    "Use Page Up/Down or mouse wheel to scroll content.",
+                    "Use Page Up/Down or mouse wheel to scroll content.\n"
+                    "Press / to search in file content.",
                     id="content-display",
                 )
+            with Horizontal(id="search-container"):
+                yield Input(placeholder="Search...", id="search-input")
 
         yield Footer()
 
@@ -187,13 +217,18 @@ class Vii(App):
                 if path.is_dir():
                     # Display folder icon for directories
                     content_display.update(f"[bold]📁 {path.name}[/bold]\n\n[dim]Directory[/dim]")
+                    self.original_content = ""
                 else:
                     # For files, show file icon, name, and contents
                     content = self._read_file_content(path)
+                    self.original_content = content
                     content_display.update(f"[bold]📄 {path.name}[/bold]\n\n{content}")
 
                 # Reset scroll position to top when content changes
                 scroll_container.scroll_home(animate=False)
+                # Clear search matches when file changes
+                self.search_matches = []
+                self.current_match_index = -1
         except Exception:
             pass
 
@@ -262,6 +297,184 @@ class Vii(App):
             # Page up in content panel (vim-style)
             event.prevent_default()
             scroll_container.scroll_page_up()
+        elif content_focused and event.key == "slash":
+            # Open search
+            event.prevent_default()
+            self._show_search()
+        elif content_focused and event.key == "n":
+            # Next search match
+            event.prevent_default()
+            self._goto_next_match()
+        elif content_focused and event.key == "N":
+            # Previous search match
+            event.prevent_default()
+            self._goto_previous_match()
+        elif content_focused and event.key == "escape":
+            # Clear search and highlights
+            event.prevent_default()
+            self._hide_search(clear_highlights=True)
+            self.search_matches = []
+            self.current_match_index = -1
+            self.search_query = ""
+
+    def _show_search(self) -> None:
+        """Show the search input."""
+        search_container = self.query_one("#search-container")
+        search_container.add_class("visible")
+        search_input = self.query_one("#search-input", Input)
+        search_input.value = self.search_query
+        search_input.focus()
+
+    def _hide_search(self, clear_highlights: bool = False) -> None:
+        """Hide the search input."""
+        search_container = self.query_one("#search-container")
+        search_container.remove_class("visible")
+        scroll_container = self.query_one("#content-scroll", ScrollableContainer)
+        scroll_container.focus()
+        if clear_highlights:
+            self._clear_search_highlights()
+
+    def _clear_search_highlights(self) -> None:
+        """Remove search highlighting from content."""
+        if self.original_content:
+            content_display = self.query_one("#content-display", Static)
+            tree = self.query_one(DirectoryTree)
+            if tree.cursor_node and tree.cursor_node.data:
+                path = tree.cursor_node.data.path
+                if path.is_file():
+                    content_display.update(
+                        f"[bold]📄 {path.name}[/bold]\n\n{self.original_content}"
+                    )
+
+    def _perform_search(self, query: str) -> None:
+        """Perform search and highlight matches."""
+        if not query:
+            self._clear_search_highlights()
+            self.search_matches = []
+            self.current_match_index = -1
+            return
+
+        self.search_query = query
+        tree = self.query_one(DirectoryTree)
+        if not (tree.cursor_node and tree.cursor_node.data):
+            return
+
+        path = tree.cursor_node.data.path
+        if not path.is_file():
+            return
+
+        # Get the original content
+        content = self._read_file_content(path)
+        self.original_content = content
+
+        # Find all matches and their line numbers (for scrolling)
+        self.search_matches = []
+        lines = content.split("\n")
+        char_pos = 0
+        for i, line in enumerate(lines):
+            for _match in re.finditer(re.escape(query), line, re.IGNORECASE):
+                # Store line_number for each match occurrence
+                self.search_matches.append(i)
+            char_pos += len(line) + 1  # +1 for newline
+
+        if not self.search_matches:
+            self.notify(f"Pattern not found: {query}", severity="warning")
+            return
+
+        # Go to first match
+        self.current_match_index = 0
+        self._update_search_highlights()
+        self._scroll_to_current_match()
+        self.notify(f"Found {len(self.search_matches)} match(es)")
+
+    def _update_search_highlights(self) -> None:
+        """Update content with search highlighting, marking current match differently."""
+        if not self.search_query or not self.original_content:
+            return
+
+        tree = self.query_one(DirectoryTree)
+        if not (tree.cursor_node and tree.cursor_node.data):
+            return
+
+        path = tree.cursor_node.data.path
+        if not path.is_file():
+            return
+
+        content = self.original_content
+
+        # Build Rich Text object with highlighting
+        text = Text()
+        text.append(f"📄 {path.name}\n\n", style="bold")
+
+        # Styles for highlighting
+        current_style = Style(color="black", bgcolor="bright_green")
+        other_style = Style(color="black", bgcolor="yellow")
+
+        last_end = 0
+        match_count = 0
+
+        for match in re.finditer(re.escape(self.search_query), content, flags=re.IGNORECASE):
+            # Add text before match (no style)
+            text.append(content[last_end : match.start()])
+
+            # Add highlighted match
+            if match_count == self.current_match_index:
+                text.append(match.group(), style=current_style)
+            else:
+                text.append(match.group(), style=other_style)
+
+            last_end = match.end()
+            match_count += 1
+
+        # Add remaining text
+        text.append(content[last_end:])
+
+        content_display = self.query_one("#content-display", Static)
+        content_display.update(text)
+
+    def _scroll_to_current_match(self) -> None:
+        """Scroll to the current match."""
+        if not self.search_matches or self.current_match_index < 0:
+            return
+
+        scroll_container = self.query_one("#content-scroll", ScrollableContainer)
+
+        # Estimate line height and scroll to match
+        match_line = self.search_matches[self.current_match_index]
+        # Add 2 for the header (icon + filename + blank line)
+        target_line = match_line + 3
+        # Scroll to approximate position
+        scroll_container.scroll_to(y=target_line, animate=True)
+
+    def _goto_next_match(self) -> None:
+        """Go to the next search match."""
+        if not self.search_matches:
+            if self.search_query:
+                self.notify("No matches to navigate", severity="warning")
+            return
+
+        self.current_match_index = (self.current_match_index + 1) % len(self.search_matches)
+        self._update_search_highlights()
+        self._scroll_to_current_match()
+        self.notify(f"Match {self.current_match_index + 1}/{len(self.search_matches)}")
+
+    def _goto_previous_match(self) -> None:
+        """Go to the previous search match."""
+        if not self.search_matches:
+            if self.search_query:
+                self.notify("No matches to navigate", severity="warning")
+            return
+
+        self.current_match_index = (self.current_match_index - 1) % len(self.search_matches)
+        self._update_search_highlights()
+        self._scroll_to_current_match()
+        self.notify(f"Match {self.current_match_index + 1}/{len(self.search_matches)}")
+
+    def on_input_submitted(self, event: Input.Submitted) -> None:
+        """Handle search input submission."""
+        if event.input.id == "search-input":
+            self._perform_search(event.value)
+            self._hide_search()
 
     def action_page_up(self) -> None:
         """Scroll the content panel up by one page."""
