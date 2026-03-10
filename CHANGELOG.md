@@ -11,8 +11,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
-- Draggable splitter between sidebar and content panels for resizable layout
-- Syntax highlighting for many common file types:
+- Two-panel layout: directory tree sidebar and file content preview
+- File content preview panel when navigating the directory tree
+- Scrollable content panel with focus-aware navigation
+- Syntax highlighting for Python files
+- Syntax highlighting extended to many common file types:
   - Shell scripts (bash, zsh, fish)
   - Config files (toml, yaml, json, ini)
   - Markup (markdown, html, xml, css)
@@ -20,9 +23,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - C/C++
   - Rust, Go, Ruby, Java, Kotlin, Swift, PHP, SQL, Lua, Perl
   - Special files (Dockerfile, Makefile, .bashrc, etc.)
+- Vim-style search (`/`) in content panel with match highlighting
+- Search in sidebar panel for finding files/directories by name
+- `n/N` keys to navigate between search matches
+- `Enter` key in content panel to open file in editor
+- `e` key to edit selected file
+- `Ctrl+F/B` for page up/down navigation in sidebar
+- Draggable splitter between sidebar and content panels for resizable layout
+
+### Changed
+
+- `Enter` now switches focus to content panel (use `e` to edit)
+- Replaced black, flake8, and isort with ruff
 
 ### Fixed
 
+- Vim h/l keybindings now work correctly in DirectoryTree
 - Test assertions updated to match actual application behavior
 
 ## [0.1.0a1] - 2026-03-09
@@ -32,23 +48,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Initial alpha release
 - Terminal-based file browser using Textual framework
 - Directory tree navigation with vim-style keybindings (j/k/h/l/g/G)
-- File content preview panel with syntax highlighting for Python
 - Automatic editor detection (checks VISUAL, EDITOR env vars, then common editors)
 - Support for both terminal editors (vim, nvim, nano, etc.) and GUI editors (VS Code, etc.)
-- Two-panel layout: directory tree sidebar and content preview
 - Keyboard shortcuts:
   - `j/k` - Navigate up/down
   - `h/l` - Collapse/expand directories
   - `g/G` - Go to top/bottom
-  - `e` - Edit selected file
-  - `Enter` - Switch focus to content panel
   - `Tab` - Switch focus between panels
-  - `/` - Search in current panel
-  - `n/N` - Next/previous search match
   - `q` - Quit
-- Search functionality in both sidebar (file names) and content panel (file contents)
-- Scrollable content panel with Page Up/Down support
-- Pre-commit hooks with ruff for linting and formatting
+- Pre-commit hooks for code quality
 - Comprehensive test suite
 
 [Unreleased]: https://github.com/aclark4life/vii/compare/v0.1.0a2...HEAD
