@@ -34,7 +34,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Changed
 
 - `Enter` now switches focus to content panel (use `e` to edit)
-- Replaced black, flake8, and isort with ruff
 
 ### Fixed
 
@@ -56,7 +55,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - `g/G` - Go to top/bottom
   - `Tab` - Switch focus between panels
   - `q` - Quit
-- Pre-commit hooks for code quality
+- Pre-commit hooks for code quality with ruff (replaced black, flake8, and isort)
 - Comprehensive test suite
 
 [Unreleased]: https://github.com/aclark4life/vii/compare/v0.1.0a2...HEAD
