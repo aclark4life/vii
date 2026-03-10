@@ -199,31 +199,36 @@ class TestVii:
             statics = app.query(Static)
             # Should have at least one Static widget with our info text
             assert len(statics) > 0
-            # Find the one with our text
+            # Find the one with our text (looking for the navigation hint text)
             found_info_text = False
             for static in statics:
-                if hasattr(static, "render") and "Select a file" in str(static.render()):
+                if hasattr(static, "render") and "Navigate with j/k" in str(static.render()):
                     found_info_text = True
                     break
             assert found_info_text
 
     async def test_file_selection(self, tmp_path):
-        """Test file selection triggers editor opening."""
+        """Test file selection updates content and focuses content panel."""
         # Create a test file
         test_file = tmp_path / "test.txt"
         test_file.write_text("test content")
 
         app = Vii(start_path=tmp_path)
 
-        with patch.object(app, "_open_in_editor") as mock_open:
-            async with app.run_test():
-                # Simulate file selection
-                tree = app.query_one(DirectoryTree)
-                event = DirectoryTree.FileSelected(tree, test_file)
-                app.on_directory_tree_file_selected(event)
+        async with app.run_test() as pilot:
+            # Simulate file selection
+            tree = app.query_one(DirectoryTree)
+            event = DirectoryTree.FileSelected(tree, test_file)
+            app.on_directory_tree_file_selected(event)
 
-                # Verify _open_in_editor was called
-                mock_open.assert_called_once_with(test_file)
+            # Allow the focus change to be processed
+            await pilot.pause()
+
+            # Verify content panel gets focus (file selection switches to content panel)
+            from textual.containers import ScrollableContainer
+
+            scroll_container = app.query_one("#content-scroll", ScrollableContainer)
+            assert scroll_container.has_focus
 
 
 class TestMain:
