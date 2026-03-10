@@ -14,7 +14,66 @@ from textual import events
 from textual.app import App, ComposeResult
 from textual.binding import Binding
 from textual.containers import Horizontal, ScrollableContainer, Vertical
+from textual.reactive import reactive
+from textual.widget import Widget
 from textual.widgets import DirectoryTree, Footer, Header, Input, Static
+
+
+class VerticalSplitter(Widget):
+    """A draggable vertical splitter for resizing panels."""
+
+    DEFAULT_CSS = """
+    VerticalSplitter {
+        width: 1;
+        height: 100%;
+        background: $primary;
+        content-align: center middle;
+    }
+
+    VerticalSplitter:hover {
+        background: $accent;
+    }
+
+    VerticalSplitter.-dragging {
+        background: $accent;
+    }
+    """
+
+    is_dragging: reactive[bool] = reactive(False)
+
+    def __init__(self, **kwargs) -> None:
+        super().__init__(**kwargs)
+        self._drag_start_x: int = 0
+
+    def render(self) -> str:
+        """Render the splitter."""
+        return "┃"
+
+    def on_mouse_down(self, event: events.MouseDown) -> None:
+        """Start dragging when mouse is pressed."""
+        self.is_dragging = True
+        self._drag_start_x = event.screen_x
+        self.capture_mouse()
+        self.add_class("-dragging")
+        event.stop()
+
+    def on_mouse_up(self, event: events.MouseUp) -> None:
+        """Stop dragging when mouse is released."""
+        if self.is_dragging:
+            self.is_dragging = False
+            self.release_mouse()
+            self.remove_class("-dragging")
+            event.stop()
+
+    def on_mouse_move(self, event: events.MouseMove) -> None:
+        """Handle mouse movement during drag."""
+        if self.is_dragging:
+            # Calculate the new sidebar width based on mouse position
+            app = self.app
+            if isinstance(app, Vii):
+                new_width = event.screen_x
+                app.set_sidebar_width(new_width)
+            event.stop()
 
 
 class Vii(App):
@@ -22,21 +81,20 @@ class Vii(App):
 
     TITLE = "vii"
 
+    # Reactive variable for sidebar width (in columns)
+    sidebar_width: reactive[int] = reactive(30)
+
     CSS = """
     Screen {
-        layout: grid;
-        grid-size: 2 1;
-        grid-columns: 1fr 2fr;
+        layout: horizontal;
     }
 
     #sidebar {
-        width: 100%;
         height: 100%;
-        border-right: solid $primary;
     }
 
     #main-content {
-        width: 100%;
+        width: 1fr;
         height: 100%;
     }
 
@@ -135,6 +193,24 @@ class Vii(App):
         self.sidebar_search_matches: list = []  # Tree nodes with matches
         self.sidebar_current_match_index = -1
 
+    def set_sidebar_width(self, width: int) -> None:
+        """Set the sidebar width, with bounds checking."""
+        # Get screen width and set minimum/maximum bounds
+        screen_width = self.size.width
+        min_width = 10
+        max_width = screen_width - 15  # Leave at least 15 columns for content
+
+        # Clamp width to bounds
+        self.sidebar_width = max(min_width, min(width, max_width))
+
+    def watch_sidebar_width(self, width: int) -> None:
+        """React to sidebar width changes."""
+        try:
+            sidebar = self.query_one("#sidebar")
+            sidebar.styles.width = width
+        except Exception:
+            pass  # Widget may not be mounted yet
+
     def _detect_editor(self) -> list[str]:
         """Detect the user's preferred editor."""
         # Check common environment variables
@@ -196,13 +272,16 @@ class Vii(App):
                     classes="search-input",
                 )
 
+        yield VerticalSplitter(id="splitter")
+
         with Vertical(id="main-content"):
             with ScrollableContainer(id="content-scroll", can_focus=True):
                 yield Static(
                     "📁 Navigate with j/k to see folder/file icons\n\n"
                     "Press Tab to switch focus between panels.\n"
                     "Use Page Up/Down or mouse wheel to scroll content.\n"
-                    "Press / to search in file content.",
+                    "Press / to search in file content.\n"
+                    "Drag the splitter to resize panels.",
                     id="content-display",
                 )
             with Horizontal(id="content-search-container"):
@@ -213,6 +292,12 @@ class Vii(App):
                 )
 
         yield Footer()
+
+    def on_mount(self) -> None:
+        """Set initial sidebar width when app mounts."""
+        # Set initial width based on screen size (about 1/3 of screen)
+        initial_width = max(20, self.size.width // 3)
+        self.sidebar_width = initial_width
 
     def _read_file_content(self, path: Path, max_size: int = 100000) -> str:
         """Read file content, handling binary files and size limits."""
