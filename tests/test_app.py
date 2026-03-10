@@ -103,9 +103,7 @@ class TestVii:
             )
 
             # Verify notification was sent
-            mock_notify.assert_called_once_with(
-                f"Opened: {test_file.name}", severity="information"
-            )
+            mock_notify.assert_called_once_with(f"Opened: {test_file.name}", severity="information")
 
     @patch("subprocess.run")
     def test_open_in_terminal_editor_success(self, mock_run, tmp_path):
@@ -200,9 +198,7 @@ class TestVii:
             # Find the one with our text
             found_info_text = False
             for static in statics:
-                if hasattr(static, "render") and "Select a file" in str(
-                    static.render()
-                ):
+                if hasattr(static, "render") and "Select a file" in str(static.render()):
                     found_info_text = True
                     break
             assert found_info_text

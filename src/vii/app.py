@@ -168,9 +168,7 @@ class Vii(App):
             elif action_key == "end":
                 tree.action_scroll_end()
 
-    def on_directory_tree_file_selected(
-        self, event: DirectoryTree.FileSelected
-    ) -> None:
+    def on_directory_tree_file_selected(self, event: DirectoryTree.FileSelected) -> None:
         """Handle file selection from the directory tree."""
         file_path = event.path
         self._open_in_editor(file_path)
