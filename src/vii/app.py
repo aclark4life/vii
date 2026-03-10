@@ -317,6 +317,46 @@ class Vii(App):
         except Exception as e:
             return f"[dim]Cannot read file: {e}[/dim]"
 
+    def _get_syntax_theme(self) -> str:
+        """Get the appropriate syntax highlighting theme based on the current app theme."""
+        # Map Textual themes to Pygments/Rich syntax themes
+        theme_map = {
+            # Dark themes
+            "textual-dark": "monokai",
+            "nord": "nord",
+            "gruvbox": "gruvbox-dark",
+            "tokyo-night": "dracula",
+            "monokai": "monokai",
+            "dracula": "dracula",
+            "catppuccin-mocha": "monokai",
+            "flexoki": "monokai",
+            "textual-ansi": "ansi_dark",
+            # Light themes
+            "textual-light": "github-light",
+            "solarized-light": "solarized-light",
+            "gruvbox-light": "gruvbox-light",
+            "catppuccin-latte": "github-light",
+            "atom-one-light": "one-light",
+        }
+
+        current_theme = self.theme
+        if current_theme in theme_map:
+            return theme_map[current_theme]
+
+        # Fallback based on dark/light mode
+        try:
+            theme_obj = self.current_theme
+            if theme_obj and theme_obj.dark:
+                return "monokai"
+            return "github-light"
+        except Exception:
+            return "monokai"
+
+    def watch_theme(self, theme: str) -> None:
+        """React to theme changes by updating the content display."""
+        # Re-render the content with the new syntax theme
+        self._update_content_display()
+
     def _get_syntax_lexer(self, path: Path) -> str | None:
         """Get the Pygments lexer name for a file based on extension."""
         extension_map = {
@@ -419,11 +459,11 @@ class Vii(App):
                     # Check if we can syntax highlight
                     lexer = self._get_syntax_lexer(path)
                     if lexer and not content.startswith("[dim]"):
-                        # Use syntax highlighting
+                        # Use syntax highlighting with theme-aware color scheme
                         syntax = Syntax(
                             content,
                             lexer,
-                            theme="monokai",
+                            theme=self._get_syntax_theme(),
                             line_numbers=True,
                         )
                         # Combine header and syntax
