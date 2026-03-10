@@ -136,6 +136,24 @@ class Vii(App):
 
         yield Footer()
 
+    def _read_file_content(self, path: Path, max_size: int = 100000) -> str:
+        """Read file content, handling binary files and size limits."""
+        try:
+            # Check file size first
+            file_size = path.stat().st_size
+            if file_size > max_size:
+                return f"[dim]File too large to preview ({file_size:,} bytes)[/dim]"
+
+            # Try to read as text
+            content = path.read_text(encoding="utf-8")
+            return content
+        except UnicodeDecodeError:
+            return "[dim]Binary file - cannot preview[/dim]"
+        except PermissionError:
+            return "[dim]Permission denied[/dim]"
+        except Exception as e:
+            return f"[dim]Cannot read file: {e}[/dim]"
+
     def _update_content_display(self) -> None:
         """Update the content display based on the currently highlighted tree node."""
         try:
@@ -146,12 +164,11 @@ class Vii(App):
 
                 if path.is_dir():
                     # Display folder icon for directories
-                    content_display.update(
-                        f"[bold]📁[/bold]\n\n[dim]Directory[/dim]\n\n{path.name}"
-                    )
+                    content_display.update(f"[bold]📁 {path.name}[/bold]\n\n[dim]Directory[/dim]")
                 else:
-                    # For files, show file icon and name
-                    content_display.update(f"[bold]📄[/bold]\n\n[dim]File[/dim]\n\n{path.name}")
+                    # For files, show file icon, name, and contents
+                    content = self._read_file_content(path)
+                    content_display.update(f"[bold]📄 {path.name}[/bold]\n\n{content}")
         except Exception:
             pass
 
@@ -168,6 +185,9 @@ class Vii(App):
             "g": "home",
             "G": "end",
         }
+
+        # Arrow keys that should also update the display
+        arrow_keys = {"up", "down", "left", "right"}
 
         if event.key in key_map:
             # Prevent the key from being processed further
@@ -189,6 +209,10 @@ class Vii(App):
 
             # Update the content display after cursor movement
             self._update_content_display()
+        elif event.key in arrow_keys:
+            # Arrow keys are handled by the tree widget, but we still need to update display
+            # Use call_after_refresh to ensure the tree has processed the key first
+            self.call_after_refresh(self._update_content_display)
 
     def on_directory_tree_file_selected(self, event: DirectoryTree.FileSelected) -> None:
         """Handle file selection from the directory tree."""
