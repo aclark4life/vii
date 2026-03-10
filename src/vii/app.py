@@ -6,7 +6,9 @@ import subprocess
 import sys
 from pathlib import Path
 
+from rich.console import Group
 from rich.style import Style
+from rich.syntax import Syntax
 from rich.text import Text
 from textual import events
 from textual.app import App, ComposeResult
@@ -206,6 +208,15 @@ class Vii(App):
         except Exception as e:
             return f"[dim]Cannot read file: {e}[/dim]"
 
+    def _get_syntax_lexer(self, path: Path) -> str | None:
+        """Get the Pygments lexer name for a file based on extension."""
+        extension_map = {
+            ".py": "python",
+            ".pyw": "python",
+            ".pyi": "python",
+        }
+        return extension_map.get(path.suffix.lower())
+
     def _update_content_display(self) -> None:
         """Update the content display based on the currently highlighted tree node."""
         try:
@@ -223,7 +234,23 @@ class Vii(App):
                     # For files, show file icon, name, and contents
                     content = self._read_file_content(path)
                     self.original_content = content
-                    content_display.update(f"[bold]📄 {path.name}[/bold]\n\n{content}")
+
+                    # Check if we can syntax highlight
+                    lexer = self._get_syntax_lexer(path)
+                    if lexer and not content.startswith("[dim]"):
+                        # Use syntax highlighting
+                        syntax = Syntax(
+                            content,
+                            lexer,
+                            theme="monokai",
+                            line_numbers=True,
+                        )
+                        # Combine header and syntax
+                        header = Text(f"📄 {path.name}\n\n", style="bold")
+                        content_display.update(Group(header, syntax))
+                    else:
+                        # Plain text display
+                        content_display.update(f"[bold]📄 {path.name}[/bold]\n\n{content}")
 
                 # Reset scroll position to top when content changes
                 scroll_container.scroll_home(animate=False)
@@ -290,14 +317,22 @@ class Vii(App):
             # Arrow keys are handled by the tree widget, but we still need to update display
             # Use call_after_refresh to ensure the tree has processed the key first
             self.call_after_refresh(self._update_content_display)
-        elif content_focused and event.key in ("ctrl+f", "ctrl+d"):
-            # Page down in content panel (vim-style)
+        elif event.key in ("ctrl+f", "ctrl+d"):
+            # Page down (vim-style)
             event.prevent_default()
-            scroll_container.scroll_page_down()
-        elif content_focused and event.key in ("ctrl+b", "ctrl+u"):
-            # Page up in content panel (vim-style)
+            if content_focused:
+                scroll_container.scroll_page_down()
+            else:
+                tree.action_page_down()
+                self._update_content_display()
+        elif event.key in ("ctrl+b", "ctrl+u"):
+            # Page up (vim-style)
             event.prevent_default()
-            scroll_container.scroll_page_up()
+            if content_focused:
+                scroll_container.scroll_page_up()
+            else:
+                tree.action_page_up()
+                self._update_content_display()
         elif content_focused and event.key == "slash":
             # Open search
             event.prevent_default()
