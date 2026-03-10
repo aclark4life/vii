@@ -97,6 +97,7 @@ class Vii(App):
         Binding("l", "cursor_right", "Expand"),
         Binding("g", "scroll_home", "Top"),
         Binding("G", "scroll_end", "Bottom"),
+        Binding("e", "edit_file", "Edit"),
         # Arrow keys still work but hidden from footer
         Binding("down", "cursor_down", "Down", show=False),
         Binding("up", "cursor_up", "Up", show=False),
@@ -487,9 +488,21 @@ class Vii(App):
         scroll_container.scroll_page_down()
 
     def on_directory_tree_file_selected(self, event: DirectoryTree.FileSelected) -> None:
-        """Handle file selection from the directory tree."""
-        file_path = event.path
-        self._open_in_editor(file_path)
+        """Handle file selection from the directory tree - switch to content panel."""
+        # Update content display and switch focus to content panel
+        self._update_content_display()
+        scroll_container = self.query_one("#content-scroll", ScrollableContainer)
+        scroll_container.focus()
+
+    def action_edit_file(self) -> None:
+        """Open the currently selected file in the editor."""
+        tree = self.query_one(DirectoryTree)
+        if tree.cursor_node and tree.cursor_node.data:
+            path = tree.cursor_node.data.path
+            if path.is_file():
+                self._open_in_editor(path)
+            else:
+                self.notify("Cannot edit a directory", severity="warning")
 
     def _open_in_editor(self, file_path: Path) -> None:
         """Open a file in the user's editor."""
