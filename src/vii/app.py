@@ -81,6 +81,9 @@ class Vii(App):
 
     TITLE = "🤖 vii"
 
+    # Set default theme
+    DEFAULT_THEME = "atom-one-dark"
+
     # Reactive variable for sidebar width (in columns)
     sidebar_width: reactive[int] = reactive(30)
 
@@ -326,20 +329,26 @@ class Vii(App):
         theme_map = {
             # Dark themes
             "textual-dark": "one-dark",
+            "atom-one-dark": "one-dark",
             "nord": "nord",
             "gruvbox": "gruvbox-dark",
-            "tokyo-night": "dracula",
+            "tokyo-night": "material",
             "monokai": "monokai",
             "dracula": "dracula",
             "catppuccin-mocha": "monokai",
-            "flexoki": "monokai",
-            "textual-ansi": "ansi_dark",
+            "catppuccin-frappe": "monokai",
+            "catppuccin-macchiato": "monokai",
+            "flexoki": "zenburn",
+            "textual-ansi": "native",
+            "solarized-dark": "solarized-dark",
+            "rose-pine": "native",
+            "rose-pine-moon": "native",
             # Light themes
-            "textual-light": "github-light",
+            "textual-light": "friendly",
+            "atom-one-light": "friendly",
             "solarized-light": "solarized-light",
-            "gruvbox-light": "gruvbox-light",
-            "catppuccin-latte": "github-light",
-            "atom-one-light": "one-light",
+            "catppuccin-latte": "friendly",
+            "rose-pine-dawn": "friendly_grayscale",
         }
 
         current_theme = self.theme
@@ -351,7 +360,7 @@ class Vii(App):
             theme_obj = self.current_theme
             if theme_obj and theme_obj.dark:
                 return "one-dark"
-            return "github-light"
+            return "friendly"
         except Exception:
             return "one-dark"
 
