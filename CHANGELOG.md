@@ -13,12 +13,24 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - Syntax highlighting support for Justfile (justfile, Justfile, .justfile)
 - `d/u` keys for page down/up navigation (in addition to existing Ctrl+F/B/D/U)
+- Mouse click in content panel now stops scroll animations
+- ENTER key in sidebar toggles directory expansion/collapse
 
 ### Changed
 
 - Simplified ENTER key behavior: always switches panel focus from content to sidebar
-- ENTER in sidebar on files still switches to content panel
-- ENTER in sidebar on directories still toggles expand/collapse
+- ENTER in sidebar on files switches to content panel
+- ENTER in sidebar on directories toggles expand/collapse
+- More subtle focus indicators for better visual clarity
+- File selection in sidebar keeps focus in sidebar (doesn't auto-switch to content panel)
+
+### Fixed
+
+- Default theme now properly set to atom-one-dark
+- Improved theme mapping for all Textual themes (dark and light variants)
+- Syntax highlighting now properly restored when clearing search
+- ESC key only handled when search is active (prevents interference with other operations)
+- Correct widget detection for mouse click events
 
 ## [0.1.0a2] - 2026-03-10
 
