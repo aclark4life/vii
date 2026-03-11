@@ -325,7 +325,7 @@ class Vii(App):
         # Map Textual themes to Pygments/Rich syntax themes
         theme_map = {
             # Dark themes
-            "textual-dark": "monokai",
+            "textual-dark": "one-dark",
             "nord": "nord",
             "gruvbox": "gruvbox-dark",
             "tokyo-night": "dracula",
@@ -350,10 +350,10 @@ class Vii(App):
         try:
             theme_obj = self.current_theme
             if theme_obj and theme_obj.dark:
-                return "monokai"
+                return "one-dark"
             return "github-light"
         except Exception:
-            return "monokai"
+            return "one-dark"
 
     def _on_theme_changed(self, theme: object) -> None:
         """React to theme changes by updating the content display.
