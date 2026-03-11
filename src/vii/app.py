@@ -497,6 +497,10 @@ class Vii(App):
 
     def on_key(self, event: events.Key) -> None:
         """Handle key presses for vi-style navigation."""
+        # Don't handle keys if an Input widget has focus (let it handle its own keys)
+        if self.focused and isinstance(self.focused, Input):
+            return
+
         tree = self.query_one(DirectoryTree)
         scroll_container = self.query_one("#content-scroll", ScrollableContainer)
 
@@ -596,10 +600,20 @@ class Vii(App):
             self.current_match_index = -1
             self.search_query = ""
         elif content_focused and event.key == "enter":
-            # Switch focus back to sidebar
+            # For files: CRLF (scroll down like vi); for dirs: switch focus back to sidebar
             event.prevent_default()
             tree = self.query_one(DirectoryTree)
-            tree.focus()
+            if tree.cursor_node and tree.cursor_node.data:
+                path = tree.cursor_node.data.path
+                if path.is_file():
+                    # CRLF behavior: scroll down by one line (like Ctrl+F in vi)
+                    scroll_container.scroll_down()
+                else:
+                    # For directories, switch focus back to sidebar
+                    tree.focus()
+            else:
+                # No node selected, switch focus back to sidebar
+                tree.focus()
         elif not content_focused and event.key == "enter":
             # For files: switch focus to content panel; for dirs: toggle expand/collapse
             event.prevent_default()
