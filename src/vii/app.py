@@ -627,35 +627,28 @@ class Vii(App):
                 self.current_match_index = -1
                 self.search_query = ""
         elif content_focused and event.key == "enter":
-            # For files: CRLF (scroll down like vi); for dirs: switch focus back to sidebar
+            # Switch focus back to sidebar
             event.prevent_default()
             tree = self.query_one(DirectoryTree)
-            if tree.cursor_node and tree.cursor_node.data:
-                path = tree.cursor_node.data.path
-                if path.is_file():
-                    # CRLF behavior: scroll down by one line (like Ctrl+F in vi)
-                    scroll_container.scroll_down()
-                else:
-                    # For directories, switch focus back to sidebar
-                    tree.focus()
-            else:
-                # No node selected, switch focus back to sidebar
-                tree.focus()
+            tree.focus()
         elif not content_focused and event.key == "enter":
-            # For files: switch focus to content panel; for dirs: toggle expand/collapse
+            # In sidebar: toggle directory or switch to content panel
             event.prevent_default()
             tree = self.query_one(DirectoryTree)
             if tree.cursor_node and tree.cursor_node.data:
                 path = tree.cursor_node.data.path
-                if path.is_file():
-                    scroll_container = self.query_one("#content-scroll", ScrollableContainer)
-                    scroll_container.focus()
-                elif path.is_dir():
+                if path.is_dir():
                     # Toggle directory expansion
                     if tree.cursor_node.is_expanded:
                         tree.cursor_node.collapse()
                     else:
                         tree.cursor_node.expand()
+                else:
+                    # For files, switch focus to content panel
+                    scroll_container.focus()
+            else:
+                # No node selected, switch focus to content panel
+                scroll_container.focus()
         elif not content_focused and event.key == "slash":
             # Open sidebar search
             event.prevent_default()
