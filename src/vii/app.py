@@ -42,8 +42,10 @@ class ViiDirectoryTree(DirectoryTree):
 
             # Only add .. if we're not at the filesystem root
             if current_path != parent_path:
-                # Add .. as the first child of root
-                parent_node = self.root.add("..", data=ParentDirData(parent_path), before=0)
+                # Add .. as a sibling above the root (at tree level)
+                parent_node = self.root.parent.add(
+                    "..", data=ParentDirData(parent_path), before=self.root
+                )
                 parent_node.allow_expand = False
 
 
