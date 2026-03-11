@@ -602,7 +602,7 @@ class Vii(App):
             event.prevent_default()
             self.action_edit_file()
         elif not content_focused and event.key == "enter":
-            # Switch focus to content panel only if a file is selected
+            # For files: switch focus to content panel; for dirs: toggle expand/collapse
             event.prevent_default()
             tree = self.query_one(DirectoryTree)
             if tree.cursor_node and tree.cursor_node.data:
@@ -610,6 +610,12 @@ class Vii(App):
                 if path.is_file():
                     scroll_container = self.query_one("#content-scroll", ScrollableContainer)
                     scroll_container.focus()
+                elif path.is_dir():
+                    # Toggle directory expansion
+                    if tree.cursor_node.is_expanded:
+                        tree.cursor_node.collapse()
+                    else:
+                        tree.cursor_node.expand()
         elif not content_focused and event.key == "slash":
             # Open sidebar search
             event.prevent_default()
