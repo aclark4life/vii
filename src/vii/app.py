@@ -596,9 +596,10 @@ class Vii(App):
             self.current_match_index = -1
             self.search_query = ""
         elif content_focused and event.key == "enter":
-            # Open file in editor (same as 'e')
+            # Switch focus back to sidebar
             event.prevent_default()
-            self.action_edit_file()
+            tree = self.query_one(DirectoryTree)
+            tree.focus()
         elif not content_focused and event.key == "enter":
             # For files: switch focus to content panel; for dirs: toggle expand/collapse
             event.prevent_default()
