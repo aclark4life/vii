@@ -169,6 +169,8 @@ class Vii(App):
         Binding("l", "cursor_right", "Expand"),
         Binding("g", "scroll_home", "Top"),
         Binding("G", "scroll_end", "Bottom"),
+        Binding("d", "page_down", "Page Down"),
+        Binding("u", "page_up", "Page Up"),
         Binding("e", "edit_file", "Edit"),
         # Arrow keys still work but hidden from footer
         Binding("down", "cursor_down", "Down", show=False),
@@ -590,7 +592,7 @@ class Vii(App):
             # Arrow keys are handled by the tree widget, but we still need to update display
             # Use call_after_refresh to ensure the tree has processed the key first
             self.call_after_refresh(self._update_content_display)
-        elif event.key in ("ctrl+f", "ctrl+d"):
+        elif event.key in ("ctrl+f", "ctrl+d", "d"):
             # Page down (vim-style)
             event.prevent_default()
             if content_focused:
@@ -598,7 +600,7 @@ class Vii(App):
             else:
                 tree.action_page_down()
                 self._update_content_display()
-        elif event.key in ("ctrl+b", "ctrl+u"):
+        elif event.key in ("ctrl+b", "ctrl+u", "u"):
             # Page up (vim-style)
             event.prevent_default()
             if content_focused:
