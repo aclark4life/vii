@@ -592,6 +592,11 @@ class Vii(App):
             # Open file in editor (same as 'e')
             event.prevent_default()
             self.action_edit_file()
+        elif not content_focused and event.key == "enter":
+            # Switch focus to content panel
+            event.prevent_default()
+            scroll_container = self.query_one("#content-scroll", ScrollableContainer)
+            scroll_container.focus()
         elif not content_focused and event.key == "slash":
             # Open sidebar search
             event.prevent_default()
@@ -881,11 +886,11 @@ class Vii(App):
         scroll_container.scroll_page_down()
 
     def on_directory_tree_file_selected(self, event: DirectoryTree.FileSelected) -> None:
-        """Handle file selection from the directory tree - switch to content panel."""
-        # Update content display and switch focus to content panel
+        """Handle file selection from the directory tree - keep focus in sidebar."""
+        # Update content display but keep focus in the sidebar
         self._update_content_display()
-        scroll_container = self.query_one("#content-scroll", ScrollableContainer)
-        scroll_container.focus()
+        tree = self.query_one(DirectoryTree)
+        tree.focus()
 
     def action_edit_file(self) -> None:
         """Open the currently selected file in the editor."""

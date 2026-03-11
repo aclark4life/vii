@@ -208,7 +208,7 @@ class TestVii:
             assert found_info_text
 
     async def test_file_selection(self, tmp_path):
-        """Test file selection updates content and focuses content panel."""
+        """Test file selection updates content and keeps focus in sidebar."""
         # Create a test file
         test_file = tmp_path / "test.txt"
         test_file.write_text("test content")
@@ -224,11 +224,8 @@ class TestVii:
             # Allow the focus change to be processed
             await pilot.pause()
 
-            # Verify content panel gets focus (file selection switches to content panel)
-            from textual.containers import ScrollableContainer
-
-            scroll_container = app.query_one("#content-scroll", ScrollableContainer)
-            assert scroll_container.has_focus
+            # Verify sidebar keeps focus (file selection no longer switches to content panel)
+            assert tree.has_focus
 
 
 class TestMain:
