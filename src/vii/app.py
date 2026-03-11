@@ -19,40 +19,6 @@ from textual.widget import Widget
 from textual.widgets import DirectoryTree, Footer, Header, Input, Static
 
 
-class ParentDirData:
-    """Data class for the parent directory (..) entry."""
-
-    def __init__(self, path: Path):
-        self.path = path
-
-
-class ViiDirectoryTree(DirectoryTree):
-    """Custom DirectoryTree with parent directory (..) navigation."""
-
-    def on_mount(self) -> None:
-        """Add parent directory entry when tree is mounted."""
-        super().on_mount()
-        self._add_parent_entry()
-
-    def _add_parent_entry(self) -> None:
-        """Add a '..' entry to navigate to parent directory."""
-        if self.root and self.root.data:
-            current_path = Path(self.root.data.path)
-            parent_path = current_path.parent
-
-            # Only add .. if we're not at the filesystem root
-            if current_path != parent_path:
-                # Add .. at the root level, before the first child
-                # Get the first child if it exists
-                if self.root.children:
-                    parent_node = self.root.add(
-                        "..", data=ParentDirData(parent_path), before=self.root.children[0]
-                    )
-                else:
-                    parent_node = self.root.add("..", data=ParentDirData(parent_path))
-                parent_node.allow_expand = False
-
-
 class VerticalSplitter(Widget):
     """A draggable vertical splitter for resizing panels."""
 
@@ -135,10 +101,11 @@ class Vii(App):
     DirectoryTree {
         width: 100%;
         height: 100%;
+        border: solid $panel;
     }
 
     DirectoryTree:focus {
-        border: solid $primary;
+        border: solid $accent;
     }
 
     .info-text {
@@ -149,10 +116,11 @@ class Vii(App):
     #content-scroll {
         width: 100%;
         height: 100%;
+        border: solid $panel;
     }
 
     #content-scroll:focus {
-        border: solid $primary;
+        border: solid $accent;
     }
 
     #content-display {
@@ -299,7 +267,7 @@ class Vii(App):
         yield Header()
 
         with Vertical(id="sidebar"):
-            yield ViiDirectoryTree(str(self.start_path))
+            yield DirectoryTree(str(self.start_path))
             with Horizontal(id="sidebar-search-container"):
                 yield Input(
                     placeholder="Search files...",
@@ -495,7 +463,7 @@ class Vii(App):
 
             # Create and mount a new tree with the new directory
             sidebar = self.query_one("#sidebar", Vertical)
-            new_tree = ViiDirectoryTree(str(directory))
+            new_tree = DirectoryTree(str(directory))
             sidebar.mount(new_tree, before=0)  # Mount at the beginning
             new_tree.focus()
 
@@ -512,16 +480,6 @@ class Vii(App):
         try:
             tree = self.query_one(DirectoryTree)
             if tree.cursor_node and tree.cursor_node.data:
-                # Skip parent dir entries for content display
-                if isinstance(tree.cursor_node.data, ParentDirData):
-                    path = tree.cursor_node.data.path
-                    content_display = self.query_one("#content-display", Static)
-                    content_display.update(
-                        f"[bold]📁 ..[/bold]\n\n[dim]Parent Directory: {path}[/dim]"
-                    )
-                    self.original_content = ""
-                    return
-
                 path = tree.cursor_node.data.path
                 content_display = self.query_one("#content-display", Static)
                 scroll_container = self.query_one("#content-scroll", ScrollableContainer)
@@ -685,22 +643,16 @@ class Vii(App):
             event.prevent_default()
             tree = self.query_one(DirectoryTree)
             if tree.cursor_node and tree.cursor_node.data:
-                # Check if this is a parent directory (..) entry
-                if isinstance(tree.cursor_node.data, ParentDirData):
-                    # Navigate to parent directory
-                    parent_path = tree.cursor_node.data.path
-                    self._navigate_to_directory(parent_path)
-                else:
-                    path = tree.cursor_node.data.path
-                    if path.is_file():
-                        scroll_container = self.query_one("#content-scroll", ScrollableContainer)
-                        scroll_container.focus()
-                    elif path.is_dir():
-                        # Toggle directory expansion
-                        if tree.cursor_node.is_expanded:
-                            tree.cursor_node.collapse()
-                        else:
-                            tree.cursor_node.expand()
+                path = tree.cursor_node.data.path
+                if path.is_file():
+                    scroll_container = self.query_one("#content-scroll", ScrollableContainer)
+                    scroll_container.focus()
+                elif path.is_dir():
+                    # Toggle directory expansion
+                    if tree.cursor_node.is_expanded:
+                        tree.cursor_node.collapse()
+                    else:
+                        tree.cursor_node.expand()
         elif not content_focused and event.key == "slash":
             # Open sidebar search
             event.prevent_default()
