@@ -79,7 +79,7 @@ class VerticalSplitter(Widget):
 class Vii(App):
     """vii - Terminal file browser."""
 
-    TITLE = "vii"
+    TITLE = "🤖 vii"
 
     # Reactive variable for sidebar width (in columns)
     sidebar_width: reactive[int] = reactive(30)
