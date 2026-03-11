@@ -593,12 +593,13 @@ class Vii(App):
             event.prevent_default()
             self._goto_previous_match()
         elif content_focused and event.key == "escape":
-            # Clear search and highlights
-            event.prevent_default()
-            self._hide_content_search(clear_highlights=True)
-            self.search_matches = []
-            self.current_match_index = -1
-            self.search_query = ""
+            # Clear search and highlights (only if search is active)
+            if self.search_query or self.search_matches:
+                event.prevent_default()
+                self._hide_content_search(clear_highlights=True)
+                self.search_matches = []
+                self.current_match_index = -1
+                self.search_query = ""
         elif content_focused and event.key == "enter":
             # For files: CRLF (scroll down like vi); for dirs: switch focus back to sidebar
             event.prevent_default()
@@ -642,12 +643,13 @@ class Vii(App):
             event.prevent_default()
             self._goto_previous_sidebar_match()
         elif not content_focused and event.key == "escape":
-            # Clear sidebar search
-            event.prevent_default()
-            self._hide_sidebar_search()
-            self.sidebar_search_matches = []
-            self.sidebar_current_match_index = -1
-            self.sidebar_search_query = ""
+            # Clear sidebar search (only if search is active)
+            if self.sidebar_search_query or self.sidebar_search_matches:
+                event.prevent_default()
+                self._hide_sidebar_search()
+                self.sidebar_search_matches = []
+                self.sidebar_current_match_index = -1
+                self.sidebar_search_query = ""
 
     def _show_content_search(self) -> None:
         """Show the content search input."""
