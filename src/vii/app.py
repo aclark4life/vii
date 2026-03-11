@@ -17,7 +17,6 @@ from textual.containers import Horizontal, ScrollableContainer, Vertical
 from textual.reactive import reactive
 from textual.widget import Widget
 from textual.widgets import DirectoryTree, Footer, Header, Input, Static
-from textual.widgets._tree import TreeNode
 
 
 class ParentDirData:
@@ -30,20 +29,22 @@ class ParentDirData:
 class ViiDirectoryTree(DirectoryTree):
     """Custom DirectoryTree with parent directory (..) navigation."""
 
-    def _populate_node(self, node: TreeNode, content: list) -> None:
-        """Populate a node with directory contents, adding .. entry."""
-        # Add parent directory entry if not at root
-        if node.data and hasattr(node.data, "path"):
-            current_path = Path(node.data.path)
+    def on_mount(self) -> None:
+        """Add parent directory entry when tree is mounted."""
+        super().on_mount()
+        self._add_parent_entry()
+
+    def _add_parent_entry(self) -> None:
+        """Add a '..' entry to navigate to parent directory."""
+        if self.root and self.root.data:
+            current_path = Path(self.root.data.path)
             parent_path = current_path.parent
 
             # Only add .. if we're not at the filesystem root
             if current_path != parent_path:
-                parent_node = node.add("..", data=ParentDirData(parent_path))
+                # Add .. as the first child of root
+                parent_node = self.root.add("..", data=ParentDirData(parent_path), before=0)
                 parent_node.allow_expand = False
-
-        # Call the parent implementation to add regular entries
-        super()._populate_node(node, content)
 
 
 class VerticalSplitter(Widget):
