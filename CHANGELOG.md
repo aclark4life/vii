@@ -7,6 +7,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.1.0a3] - 2026-03-11
+
+### Added
+
+- Syntax highlighting support for Justfile (justfile, Justfile, .justfile)
+- `d/u` keys for page down/up navigation (in addition to existing Ctrl+F/B/D/U)
+
+### Changed
+
+- Simplified ENTER key behavior: always switches panel focus from content to sidebar
+- ENTER in sidebar on files still switches to content panel
+- ENTER in sidebar on directories still toggles expand/collapse
+
 ## [0.1.0a2] - 2026-03-10
 
 ### Added
@@ -59,6 +72,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Pre-commit hooks for code quality with ruff (replaced black, flake8, and isort)
 - Comprehensive test suite
 
-[Unreleased]: https://github.com/aclark4life/vii/compare/v0.1.0a2...HEAD
+[Unreleased]: https://github.com/aclark4life/vii/compare/v0.1.0a3...HEAD
+[0.1.0a3]: https://github.com/aclark4life/vii/compare/v0.1.0a2...v0.1.0a3
 [0.1.0a2]: https://github.com/aclark4life/vii/compare/v0.1.0a1...v0.1.0a2
 [0.1.0a1]: https://github.com/aclark4life/vii/releases/tag/v0.1.0a1
