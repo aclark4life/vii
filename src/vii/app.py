@@ -942,6 +942,15 @@ class Vii(App):
         tree = self.query_one(DirectoryTree)
         tree.focus()
 
+    def on_click(self, event: events.Click) -> None:
+        """Handle mouse clicks to stop scroll animations."""
+        # Check if the click is in the content scroll container
+        scroll_container = self.query_one("#content-scroll", ScrollableContainer)
+        if scroll_container.get_widget_at(event.screen_x, event.screen_y)[0] == scroll_container:
+            # Stop any ongoing scroll animations
+            self.call_later(scroll_container.stop_animation, "scroll_x")
+            self.call_later(scroll_container.stop_animation, "scroll_y")
+
     def action_edit_file(self) -> None:
         """Open the currently selected file in the editor."""
         tree = self.query_one(DirectoryTree)
