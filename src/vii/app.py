@@ -81,9 +81,6 @@ class Vii(App):
 
     TITLE = "🤖 vii"
 
-    # Set default theme
-    DEFAULT_THEME = "atom-one-dark"
-
     # Reactive variable for sidebar width (in columns)
     sidebar_width: reactive[int] = reactive(30)
 
@@ -183,6 +180,7 @@ class Vii(App):
 
     def __init__(self, start_path: Path | None = None):
         super().__init__()
+        self.theme = "atom-one-dark"  # Set default theme
         self.start_path = start_path or Path.cwd()
         self.editor_command = self._detect_editor()
         self.is_terminal_editor = self._is_terminal_editor()
