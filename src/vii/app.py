@@ -765,16 +765,32 @@ class Vii(App):
         )
 
     def _clear_search_highlights(self) -> None:
-        """Remove search highlighting from content."""
+        """Remove search highlighting from content and restore original display."""
         if self.original_content:
             content_display = self.query_one("#content-display", Static)
             tree = self.query_one(DirectoryTree)
             if tree.cursor_node and tree.cursor_node.data:
                 path = tree.cursor_node.data.path
                 if path.is_file():
-                    content_display.update(
-                        f"[bold]📄 {path.name}[/bold]\n\n{self.original_content}"
-                    )
+                    content = self.original_content
+                    # Check if we can syntax highlight
+                    lexer = self._get_syntax_lexer(path)
+                    if lexer and not content.startswith("[dim]"):
+                        # Use syntax highlighting with theme-aware color scheme
+                        syntax = Syntax(
+                            content,
+                            lexer,
+                            theme=self._get_syntax_theme(),
+                            line_numbers=True,
+                        )
+                        # Combine header and syntax
+                        header = Text(f"📄 {path.name}\n\n", style="bold")
+                        content_display.update(Group(header, syntax))
+                    else:
+                        # Plain text display
+                        content_display.update(
+                            f"[bold]📄 {path.name}[/bold]\n\n{self.original_content}"
+                        )
 
     def _perform_search(self, query: str) -> None:
         """Perform search and highlight matches."""
