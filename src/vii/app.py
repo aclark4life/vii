@@ -443,6 +443,9 @@ class Vii(App):
         filename_map = {
             "Dockerfile": "docker",
             "Makefile": "make",
+            "justfile": "make",
+            "Justfile": "make",
+            ".justfile": "make",
             "CMakeLists.txt": "cmake",
             ".bashrc": "bash",
             ".bash_profile": "bash",
