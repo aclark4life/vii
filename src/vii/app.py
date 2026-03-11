@@ -946,7 +946,10 @@ class Vii(App):
         """Handle mouse clicks to stop scroll animations."""
         # Check if the click is in the content scroll container
         scroll_container = self.query_one("#content-scroll", ScrollableContainer)
-        if scroll_container.get_widget_at(event.screen_x, event.screen_y)[0] == scroll_container:
+        widget_at_click, _ = self.get_widget_at(event.screen_x, event.screen_y)
+
+        # If click is within the scroll container or its children, stop animations
+        if widget_at_click is scroll_container or scroll_container in widget_at_click.ancestors:
             # Stop any ongoing scroll animations
             self.call_later(scroll_container.stop_animation, "scroll_x")
             self.call_later(scroll_container.stop_animation, "scroll_y")
