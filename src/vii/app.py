@@ -602,10 +602,14 @@ class Vii(App):
             event.prevent_default()
             self.action_edit_file()
         elif not content_focused and event.key == "enter":
-            # Switch focus to content panel
+            # Switch focus to content panel only if a file is selected
             event.prevent_default()
-            scroll_container = self.query_one("#content-scroll", ScrollableContainer)
-            scroll_container.focus()
+            tree = self.query_one(DirectoryTree)
+            if tree.cursor_node and tree.cursor_node.data:
+                path = tree.cursor_node.data.path
+                if path.is_file():
+                    scroll_container = self.query_one("#content-scroll", ScrollableContainer)
+                    scroll_container.focus()
         elif not content_focused and event.key == "slash":
             # Open sidebar search
             event.prevent_default()
