@@ -1079,7 +1079,7 @@ class Vii(App):
 
         content = self.original_content
 
-        # Build Rich Text object with highlighting
+        # Build Rich Text object with highlighting and line numbers
         text = Text()
         text.append(f"📄 {path.name}\n\n", style="bold")
 
@@ -1087,24 +1087,33 @@ class Vii(App):
         current_style = Style(color="black", bgcolor="bright_green")
         other_style = Style(color="black", bgcolor="yellow")
 
-        last_end = 0
-        match_count = 0
+        lines = content.split('\n')
+        global_match_count = 0
 
-        for match in re.finditer(re.escape(self.search_query), content, flags=re.IGNORECASE):
-            # Add text before match (no style)
-            text.append(content[last_end : match.start()])
+        for line_num, line in enumerate(lines, 1):
+            # Add line number
+            text.append(f"{line_num:4d} ", style="dim")
 
-            # Add highlighted match
-            if match_count == self.current_match_index:
-                text.append(match.group(), style=current_style)
-            else:
-                text.append(match.group(), style=other_style)
+            last_end = 0
 
-            last_end = match.end()
-            match_count += 1
+            # Find matches in this line
+            for match in re.finditer(re.escape(self.search_query), line, flags=re.IGNORECASE):
+                # Add text before match
+                text.append(line[last_end : match.start()])
 
-        # Add remaining text
-        text.append(content[last_end:])
+                # Add highlighted match
+                if global_match_count == self.current_match_index:
+                    text.append(match.group(), style=current_style)
+                else:
+                    text.append(match.group(), style=other_style)
+
+                last_end = match.end()
+                global_match_count += 1
+
+            # Add remaining text in line
+            text.append(line[last_end:])
+            if line_num < len(lines):
+                text.append("\n")
 
         content_display = self.query_one("#content-display", Static)
         content_display.update(text)
