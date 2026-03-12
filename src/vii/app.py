@@ -877,9 +877,12 @@ class Vii(App):
     def _schedule_content_update(self) -> None:
         """Schedule a debounced content update to prevent UI freezing during rapid navigation.
 
-        This uses a two-phase approach:
-        1. Immediately show plain text or cached content (no blocking)
-        2. After 200ms of no navigation, start syntax highlighting in background
+        This uses a three-phase approach for smooth j/k scrolling:
+        1. INSTANT: Only show cached content (no I/O)
+        2. After 50ms: Show plain text (fast file read)
+        3. After 200ms: Start syntax highlighting (background worker)
+
+        This means holding j/k never blocks - cursor moves freely.
         """
         # Cancel any pending timers
         if hasattr(self, "_content_update_timer") and self._content_update_timer:
@@ -887,24 +890,27 @@ class Vii(App):
         if hasattr(self, "_syntax_highlight_timer") and self._syntax_highlight_timer:
             self._syntax_highlight_timer.stop()
 
-        # Show plain text immediately (no delay) for instant feedback
-        self._show_plain_text_preview()
+        # Only show cached content immediately (no file I/O)
+        self._show_cached_content_only()
+
+        # Schedule plain text preview after brief pause (50ms)
+        self._content_update_timer = self.set_timer(0.05, self._show_plain_text_preview)
 
         # Schedule syntax highlighting after user stops navigating (200ms)
         self._syntax_highlight_timer = self.set_timer(0.2, self._start_syntax_highlighting)
 
-    def _show_plain_text_preview(self) -> None:
-        """Show plain text preview immediately without syntax highlighting."""
+    def _show_cached_content_only(self) -> None:
+        """Show only cached content instantly - no file I/O."""
         try:
             tree = self.query_one(DirectoryTree)
             if not tree.cursor_node or not tree.cursor_node.data:
                 return
 
             path = tree.cursor_node.data.path
+            content_display = self.query_one("#content-display", Static)
 
             if path.is_dir():
-                # Directories are fast - update synchronously
-                content_display = self.query_one("#content-display", Static)
+                # Directories are instant
                 content_display.update(f"[bold]📁 {path.name}[/bold]\n\n[dim]Directory[/dim]")
                 self.original_content = ""
                 self.search_matches = []
@@ -919,7 +925,6 @@ class Vii(App):
                 self.current_match_index = -1
                 self.git_log_viewing = False
                 self.git_log_page = 0
-                content_display = self.query_one("#content-display", Static)
                 if rendered:
                     content_display.update(rendered)
                 else:
@@ -927,29 +932,48 @@ class Vii(App):
                 scroll_container = self.query_one("#content-scroll", ScrollableContainer)
                 scroll_container.scroll_home(animate=False)
             else:
-                # Show plain text immediately while syntax highlighting loads
-                try:
-                    if path.stat().st_size <= 100_000:  # 100KB limit
-                        raw_content = path.read_text(errors="replace")
-                        lines = raw_content.split("\n")
-                        if len(lines) > 2000:
-                            raw_content = "\n".join(lines[:2000]) + "\n\n[dim]... (truncated)[/dim]"
-                        content_display = self.query_one("#content-display", Static)
-                        content_display.update(f"[bold]📄 {path.name}[/bold]\n\n{raw_content}")
-                        scroll_container = self.query_one("#content-scroll", ScrollableContainer)
-                        scroll_container.scroll_home(animate=False)
-                        self.original_content = raw_content
-                    else:
-                        content_display = self.query_one("#content-display", Static)
-                        msg = "[dim]File too large to preview (> 100KB)[/dim]"
-                        content_display.update(f"[bold]📄 {path.name}[/bold]\n\n{msg}")
-                        self.original_content = ""
-                except Exception:
-                    pass
+                # Not cached - just show loading indicator (no I/O)
+                content_display.update(f"[bold]📄 {path.name}[/bold]\n\n[dim]Loading...[/dim]")
                 self.search_matches = []
                 self.current_match_index = -1
                 self.git_log_viewing = False
                 self.git_log_page = 0
+        except Exception:
+            pass
+
+    def _show_plain_text_preview(self) -> None:
+        """Show plain text preview - called after 50ms debounce."""
+        self._content_update_timer = None
+        try:
+            tree = self.query_one(DirectoryTree)
+            if not tree.cursor_node or not tree.cursor_node.data:
+                return
+
+            path = tree.cursor_node.data.path
+
+            # Skip if cached or directory (already handled)
+            if path.is_dir() or path in self._rendered_cache:
+                return
+
+            # Read and display plain text
+            try:
+                if path.stat().st_size <= 100_000:  # 100KB limit
+                    raw_content = path.read_text(errors="replace")
+                    lines = raw_content.split("\n")
+                    if len(lines) > 2000:
+                        raw_content = "\n".join(lines[:2000]) + "\n\n[dim]... (truncated)[/dim]"
+                    content_display = self.query_one("#content-display", Static)
+                    content_display.update(f"[bold]📄 {path.name}[/bold]\n\n{raw_content}")
+                    scroll_container = self.query_one("#content-scroll", ScrollableContainer)
+                    scroll_container.scroll_home(animate=False)
+                    self.original_content = raw_content
+                else:
+                    content_display = self.query_one("#content-display", Static)
+                    msg = "[dim]File too large to preview (> 100KB)[/dim]"
+                    content_display.update(f"[bold]📄 {path.name}[/bold]\n\n{msg}")
+                    self.original_content = ""
+            except Exception:
+                pass
         except Exception:
             pass
 
