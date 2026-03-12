@@ -7,6 +7,27 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.1.0a4] - 2026-03-12
+
+### Added
+- Tree-sitter syntax highlighting (2.6x faster than Pygments)
+- Shell command (`s` key) - drop into shell in current directory
+- Git log with pagination (`l` key)
+- Git blame (`b` key)
+- Git branch switching (`B` key)
+- Hierarchical Git menu in command palette
+- Line numbers in search results
+
+### Changed
+- Smooth j/k navigation with 100ms debounced content updates
+- Increased render cache from 10 to 30 files
+- Cached relative path lookups in directory tree for faster rendering
+
+### Fixed
+- Tree state (expanded/collapsed) preserved when reloading
+- Git operations now work correctly from repository root
+- ESC key properly closes git log display
+
 ## [0.1.0a3] - 2026-03-11
 
 ### Added
@@ -84,7 +105,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Pre-commit hooks for code quality with ruff (replaced black, flake8, and isort)
 - Comprehensive test suite
 
-[Unreleased]: https://github.com/aclark4life/vii/compare/v0.1.0a3...HEAD
+[Unreleased]: https://github.com/aclark4life/vii/compare/v0.1.0a4...HEAD
+[0.1.0a4]: https://github.com/aclark4life/vii/compare/v0.1.0a3...v0.1.0a4
 [0.1.0a3]: https://github.com/aclark4life/vii/compare/v0.1.0a2...v0.1.0a3
 [0.1.0a2]: https://github.com/aclark4life/vii/compare/v0.1.0a1...v0.1.0a2
 [0.1.0a1]: https://github.com/aclark4life/vii/releases/tag/v0.1.0a1
