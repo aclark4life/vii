@@ -722,8 +722,25 @@ class Vii(App):
     def _reload_tree(self) -> None:
         """Reload the directory tree to reflect file system changes."""
         try:
-            # Remove the old tree
+            # Save the current cursor position and expanded nodes
             old_tree = self.query_one(DirectoryTree)
+            cursor_path = None
+            if old_tree.cursor_node and old_tree.cursor_node.data:
+                cursor_path = old_tree.cursor_node.data.path
+
+            # Collect all expanded node paths
+            expanded_paths = set()
+
+            def collect_expanded(node):
+                """Recursively collect expanded node paths."""
+                if node.is_expanded and node.data and hasattr(node.data, "path"):
+                    expanded_paths.add(node.data.path)
+                for child in node.children:
+                    collect_expanded(child)
+
+            collect_expanded(old_tree.root)
+
+            # Remove the old tree
             old_tree.remove()
 
             # Create and mount a new tree with the same directory
@@ -731,10 +748,45 @@ class Vii(App):
             new_tree = GitDirectoryTree(str(self.start_path))
             new_tree.git_file_status = self.git_file_status
             sidebar.mount(new_tree, before=0)  # Mount at the beginning
-            new_tree.focus()
 
-            # Update content display
-            self.call_after_refresh(self._update_content_display)
+            # Restore expanded state and cursor position
+            def restore_tree_state():
+                """Restore the expanded nodes and cursor position."""
+
+                # First, expand all previously expanded nodes
+                def expand_nodes(node):
+                    """Recursively expand nodes that were previously expanded."""
+                    if node.data and hasattr(node.data, "path"):
+                        if node.data.path in expanded_paths:
+                            node.expand()
+                    for child in node.children:
+                        expand_nodes(child)
+
+                expand_nodes(new_tree.root)
+
+                # Then, try to restore cursor position
+                if cursor_path:
+
+                    def find_and_select_node(node):
+                        """Recursively find and select the node with cursor_path."""
+                        if node.data and hasattr(node.data, "path"):
+                            if node.data.path == cursor_path:
+                                new_tree.select_node(node)
+                                new_tree.scroll_to_node(node)
+                                return True
+                        for child in node.children:
+                            if find_and_select_node(child):
+                                return True
+                        return False
+
+                    find_and_select_node(new_tree.root)
+
+                new_tree.focus()
+                self._update_content_display()
+
+            # Call after refresh to ensure tree is fully loaded
+            self.call_after_refresh(restore_tree_state)
+
         except Exception as e:
             self.notify(f"Cannot reload tree: {e}", severity="error")
 
