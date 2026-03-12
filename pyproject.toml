@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "vii"
-version = "0.1.0a3"
+version = "0.1.0a4"
 description = "vii - A terminal-based file browser that opens files in your editor"
 readme = "README.md"
 requires-python = ">=3.10"
