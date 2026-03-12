@@ -471,12 +471,35 @@ class Vii(App):
         # Update header with git info
         self._update_header()
 
-    def _update_git_info(self) -> None:
-        """Update git repository information for the current directory."""
-        if is_git_repo(self.start_path):
-            self.git_branch = get_git_branch(self.start_path)
-            self.git_status = get_git_status_summary(self.start_path)
-            self.git_file_status = get_git_file_status(self.start_path)
+    def _get_current_directory(self) -> Path:
+        """Get the current directory based on the tree cursor position."""
+        try:
+            tree = self.query_one(DirectoryTree)
+            if tree.cursor_node and tree.cursor_node.data:
+                path = tree.cursor_node.data.path
+                # If it's a file, get its parent directory
+                if path.is_file():
+                    return path.parent
+                # If it's a directory, use it
+                return path
+        except Exception:
+            pass
+        # Fallback to start path
+        return self.start_path
+
+    def _update_git_info(self, path: Path | None = None) -> None:
+        """Update git repository information for the current directory.
+
+        Args:
+            path: Optional path to check. If None, uses current directory from tree cursor.
+        """
+        if path is None:
+            path = self._get_current_directory()
+
+        if is_git_repo(path):
+            self.git_branch = get_git_branch(path)
+            self.git_status = get_git_status_summary(path)
+            self.git_file_status = get_git_file_status(path)
 
             # Update the tree's git status
             try:
@@ -796,12 +819,16 @@ class Vii(App):
                 elif action_key == "end":
                     tree.action_scroll_end()
 
-                # Update the content display after cursor movement
+                # Update the content display and git info after cursor movement
                 self._update_content_display()
+                self._update_git_info()
         elif event.key in arrow_keys and not content_focused:
             # Arrow keys are handled by the tree widget, but we still need to update display
             # Use call_after_refresh to ensure the tree has processed the key first
-            self.call_after_refresh(self._update_content_display)
+            def update_after_arrow():
+                self._update_content_display()
+                self._update_git_info()
+            self.call_after_refresh(update_after_arrow)
         elif event.key in ("ctrl+f", "ctrl+d", "d"):
             # Page down (vim-style)
             event.prevent_default()
@@ -810,6 +837,7 @@ class Vii(App):
             else:
                 tree.action_page_down()
                 self._update_content_display()
+                self._update_git_info()
         elif event.key in ("ctrl+b", "ctrl+u", "u"):
             # Page up (vim-style)
             event.prevent_default()
@@ -818,6 +846,7 @@ class Vii(App):
             else:
                 tree.action_page_up()
                 self._update_content_display()
+                self._update_git_info()
         elif content_focused and event.key == "slash":
             # Open content search
             event.prevent_default()
@@ -1179,8 +1208,15 @@ class Vii(App):
         """Handle file selection from the directory tree - keep focus in sidebar."""
         # Update content display but keep focus in the sidebar
         self._update_content_display()
+        # Update git info for the current directory
+        self._update_git_info()
         tree = self.query_one(DirectoryTree)
         tree.focus()
+
+    def on_directory_tree_directory_selected(self, event: DirectoryTree.DirectorySelected) -> None:
+        """Handle directory selection from the directory tree."""
+        # Update git info when navigating to a different directory
+        self._update_git_info()
 
     def on_click(self, event: events.Click) -> None:
         """Handle mouse clicks to stop scroll animations."""
