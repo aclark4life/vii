@@ -36,33 +36,56 @@ class GitDirectoryTree(DirectoryTree):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.git_file_status: dict[str, str] = {}
+        # Cache for path -> relative path mapping (avoid repeated computation)
+        self._rel_path_cache: dict[Path, str | None] = {}
+        self._tree_root: Path | None = None
+
+    def _get_rel_path(self, path: Path) -> str | None:
+        """Get cached relative path for a file."""
+        if path in self._rel_path_cache:
+            return self._rel_path_cache[path]
+
+        # Lazily initialize tree root
+        if self._tree_root is None:
+            self._tree_root = Path(self.path)
+
+        try:
+            rel_path = str(path.relative_to(self._tree_root))
+            self._rel_path_cache[path] = rel_path
+            return rel_path
+        except (ValueError, AttributeError):
+            self._rel_path_cache[path] = None
+            return None
+
+    def clear_path_cache(self) -> None:
+        """Clear the relative path cache (call when tree root changes)."""
+        self._rel_path_cache.clear()
+        self._tree_root = None
 
     def render_label(self, node, base_style, style):
         """Render a label with git status indicator."""
         label = super().render_label(node, base_style, style)
 
+        # Quick exit if no git status data
+        if not self.git_file_status:
+            return label
+
         # Add git status indicator if available
         if node.data and hasattr(node.data, "path"):
             path = node.data.path
-            if path.is_file():
-                # Get relative path from the tree root
-                try:
-                    tree_root = Path(self.path)
-                    rel_path = str(path.relative_to(tree_root))
-
-                    if rel_path in self.git_file_status:
-                        status_code = self.git_file_status[rel_path]
-                        # Map status codes to indicators
-                        if "M" in status_code:
-                            label = Text("~", style="yellow") + Text(" ") + label
-                        elif "A" in status_code:
-                            label = Text("+", style="green") + Text(" ") + label
-                        elif "D" in status_code:
-                            label = Text("-", style="red") + label
-                        elif "?" in status_code:
-                            label = Text("?", style="cyan") + Text(" ") + label
-                except (ValueError, AttributeError):
-                    pass
+            # Use cached relative path lookup
+            rel_path = self._get_rel_path(path)
+            if rel_path and rel_path in self.git_file_status:
+                status_code = self.git_file_status[rel_path]
+                # Map status codes to indicators
+                if "M" in status_code:
+                    label = Text("~", style="yellow") + Text(" ") + label
+                elif "A" in status_code:
+                    label = Text("+", style="green") + Text(" ") + label
+                elif "D" in status_code:
+                    label = Text("-", style="red") + label
+                elif "?" in status_code:
+                    label = Text("?", style="cyan") + Text(" ") + label
 
         return label
 
