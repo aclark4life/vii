@@ -366,10 +366,7 @@ def get_git_log(path: Path, max_count: int = 50, skip: int = 0) -> str | None:
     """
     try:
         # Use a nice format with colors and graph
-        format_str = (
-            "%C(yellow)%h%Creset %C(cyan)%ad%Creset "
-            "%C(green)%an%Creset%n  %s%n"
-        )
+        format_str = "%C(yellow)%h%Creset %C(cyan)%ad%Creset %C(green)%an%Creset%n  %s%n"
         result = subprocess.run(
             [
                 "git",

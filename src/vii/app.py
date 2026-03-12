@@ -13,13 +13,11 @@ from rich.text import Text
 from textual import events
 from textual.app import App, ComposeResult
 from textual.binding import Binding
+from textual.command import Hit, Hits, Provider
 from textual.containers import Horizontal, ScrollableContainer, Vertical
 from textual.reactive import reactive
 from textual.widget import Widget
 from textual.widgets import DirectoryTree, Footer, Header, Input, Static
-from textual.command import Hit, Hits, Provider
-from textual.app import SystemCommand
-from textual.screen import Screen as TextualScreen
 
 from vii.git_utils import (
     get_git_branch,
@@ -143,9 +141,7 @@ class GitCommandProvider(Provider):
                         )
 
         # Push a new command palette with git subcommands
-        self.app.push_screen(
-            CommandPalette(providers=[GitSubCommandProvider])
-        )
+        self.app.push_screen(CommandPalette(providers=[GitSubCommandProvider]))
 
     async def search(self, query: str) -> Hits:
         """Search for git menu."""
@@ -836,6 +832,7 @@ class Vii(App):
             def update_after_arrow():
                 self._update_content_display()
                 self._update_git_info()
+
             self.call_after_refresh(update_after_arrow)
         elif event.key in ("ctrl+f", "ctrl+d", "d"):
             # Page down (vim-style)
@@ -1142,7 +1139,7 @@ class Vii(App):
         current_style = Style(color="black", bgcolor="bright_green")
         other_style = Style(color="black", bgcolor="yellow")
 
-        lines = content.split('\n')
+        lines = content.split("\n")
         global_match_count = 0
 
         for line_num, line in enumerate(lines, 1):
@@ -1553,6 +1550,7 @@ class Vii(App):
             if blame_output:
                 # Display blame in content panel with syntax highlighting
                 from rich.syntax import Syntax
+
                 syntax = Syntax(
                     blame_output,
                     "diff",  # Use diff lexer for git blame output
@@ -1575,8 +1573,9 @@ class Vii(App):
             return
 
         try:
-            from .git_utils import get_git_branches, git_checkout_branch, git_checkout_remote_branch
-            from textual.command import CommandPalette, Provider, Hit, DiscoveryHit
+            from textual.command import CommandPalette, DiscoveryHit, Hit, Provider
+
+            from .git_utils import get_git_branches
 
             branches = get_git_branches(self.start_path)
             if not branches:
