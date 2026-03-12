@@ -753,16 +753,31 @@ class Vii(App):
             def restore_tree_state():
                 """Restore the expanded nodes and cursor position."""
 
-                # First, expand all previously expanded nodes
-                def expand_nodes(node):
-                    """Recursively expand nodes that were previously expanded."""
-                    if node.data and hasattr(node.data, "path"):
-                        if node.data.path in expanded_paths:
-                            node.expand()
-                    for child in node.children:
-                        expand_nodes(child)
+                # Sort expanded paths by depth (shallowest first) to expand in correct order
+                sorted_paths = sorted(expanded_paths, key=lambda p: len(p.parts))
 
-                expand_nodes(new_tree.root)
+                # Expand nodes in order from root to leaves
+                def find_and_expand_path(target_path):
+                    """Find and expand a node with the given path."""
+
+                    def find_and_expand(node):
+                        """Find and expand a specific node."""
+                        if node.data and hasattr(node.data, "path"):
+                            if node.data.path == target_path:
+                                if not node.is_expanded:
+                                    node.expand()
+                                return True
+                        # Only search children if this node is expanded
+                        if node.is_expanded:
+                            for child in node.children:
+                                if find_and_expand(child):
+                                    return True
+                        return False
+
+                    return find_and_expand(new_tree.root)
+
+                for path_to_expand in sorted_paths:
+                    find_and_expand_path(path_to_expand)
 
                 # Then, try to restore cursor position
                 if cursor_path:
@@ -774,9 +789,11 @@ class Vii(App):
                                 new_tree.select_node(node)
                                 new_tree.scroll_to_node(node)
                                 return True
-                        for child in node.children:
-                            if find_and_select_node(child):
-                                return True
+                        # Only search children if this node is expanded
+                        if node.is_expanded:
+                            for child in node.children:
+                                if find_and_select_node(child):
+                                    return True
                         return False
 
                     find_and_select_node(new_tree.root)
