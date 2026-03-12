@@ -383,10 +383,8 @@ class Vii(App):
         # Git log pagination
         self.git_log_page: int = 0
         self.git_log_page_size: int = 50
-        # Content update debounce timer (for plain text)
+        # Content update debounce timer
         self._content_update_timer = None
-        # Syntax highlighting timer (longer delay)
-        self._syntax_highlight_timer = None
         # Cache for rendered file content (LRU-style, max 30 files)
         self._rendered_cache: dict[Path, tuple[str, object]] = {}
         self._cache_max_size = 30
@@ -900,45 +898,29 @@ class Vii(App):
             self.notify(f"Cannot reload tree: {e}", severity="error")
 
     def _schedule_content_update(self) -> None:
-        """Schedule a debounced content update to prevent UI freezing during rapid navigation.
+        """Schedule a debounced content update.
 
-        This uses a three-phase approach for smooth j/k scrolling:
-        1. INSTANT: Only show cached content (no I/O)
-        2. After 50ms: Show plain text (fast file read)
-        3. After 200ms: Start syntax highlighting (background worker)
-
-        This means holding j/k never blocks - cursor moves freely.
+        Uses a single timer to minimize overhead during rapid navigation.
+        Content only loads after user stops for 100ms.
         """
-        # Cancel any pending timers
-        if hasattr(self, "_content_update_timer") and self._content_update_timer:
+        # Cancel any pending timer
+        if self._content_update_timer is not None:
             self._content_update_timer.stop()
-        if hasattr(self, "_syntax_highlight_timer") and self._syntax_highlight_timer:
-            self._syntax_highlight_timer.stop()
+            self._content_update_timer = None
 
-        # Only show cached content immediately (no file I/O)
-        self._show_cached_content_only()
+        # Single timer - load content after navigation stops
+        self._content_update_timer = self.set_timer(0.1, self._do_content_update)
 
-        # Schedule plain text preview after brief pause (50ms)
-        self._content_update_timer = self.set_timer(0.05, self._show_plain_text_preview)
+    def _do_content_update(self) -> None:
+        """Load and display content after navigation stops (100ms debounce)."""
+        self._content_update_timer = None
 
-        # Schedule syntax highlighting after user stops navigating (200ms)
-        self._syntax_highlight_timer = self.set_timer(0.2, self._start_syntax_highlighting)
-
-    def _show_cached_content_only(self) -> None:
-        """Do nothing during rapid navigation - let timers handle everything.
-
-        This is called on every cursor movement. We do NOTHING here to ensure
-        cursor movement is instant. The 50ms timer will show content.
-        """
-        # Reset state only - no widget updates at all during rapid navigation
+        # Reset search state
         self.search_matches = []
         self.current_match_index = -1
         self.git_log_viewing = False
         self.git_log_page = 0
 
-    def _show_plain_text_preview(self) -> None:
-        """Show plain text or cached content - called after 50ms debounce."""
-        self._content_update_timer = None
         try:
             tree = self.query_one(DirectoryTree)
             if not tree.cursor_node or not tree.cursor_node.data:
@@ -946,7 +928,7 @@ class Vii(App):
 
             path = tree.cursor_node.data.path
 
-            # Skip if already displaying this path fully
+            # Skip if already displaying this path
             if path == self._displayed_path:
                 return
 
@@ -959,7 +941,7 @@ class Vii(App):
                 self._displayed_path = path
                 return
 
-            # Use cached content if available
+            # Use cached content if available (includes syntax highlighting)
             if path in self._rendered_cache:
                 content, rendered = self._rendered_cache[path]
                 self.original_content = content
@@ -971,42 +953,9 @@ class Vii(App):
                 self._displayed_path = path
                 return
 
-            # Read and display plain text
-            try:
-                if path.stat().st_size <= 100_000:  # 100KB limit
-                    raw_content = path.read_text(errors="replace")
-                    lines = raw_content.split("\n")
-                    if len(lines) > 2000:
-                        raw_content = "\n".join(lines[:2000]) + "\n\n[dim]... (truncated)[/dim]"
-                    content_display.update(f"[bold]📄 {path.name}[/bold]\n\n{raw_content}")
-                    scroll_container.scroll_home(animate=False)
-                    self.original_content = raw_content
-                    self._displayed_path = path
-                else:
-                    msg = "[dim]File too large to preview (> 100KB)[/dim]"
-                    content_display.update(f"[bold]📄 {path.name}[/bold]\n\n{msg}")
-                    self.original_content = ""
-                    self._displayed_path = path
-            except Exception:
-                pass
-        except Exception:
-            pass
-
-    def _start_syntax_highlighting(self) -> None:
-        """Start the async syntax highlighting worker after navigation settles."""
-        self._syntax_highlight_timer = None
-
-        try:
-            tree = self.query_one(DirectoryTree)
-            if tree.cursor_node and tree.cursor_node.data:
-                path = tree.cursor_node.data.path
-
-                # Skip directories and already-cached files
-                if path.is_dir() or path in self._rendered_cache:
-                    return
-
-                # Start async worker to compute syntax highlighting
-                self._load_file_content(path)
+            # Not cached - start background worker for syntax highlighting
+            # Worker will update display when done
+            self._load_file_content(path)
         except Exception:
             pass
 
@@ -1202,15 +1151,11 @@ class Vii(App):
                 # Update the content display after cursor movement (debounced)
                 # Note: git info is NOT updated on navigation - it's expensive (subprocess calls)
                 # and doesn't change just from moving the cursor
-                # DEBUG: Comment out to test if DirectoryTree itself is slow
-                # self._schedule_content_update()
-                pass
+                self._schedule_content_update()
         elif event.key in arrow_keys and not content_focused:
             # Arrow keys are handled by the tree widget, but we still need to update display
             # Use call_after_refresh to ensure the tree has processed the key first
-            # DEBUG: Comment out to test
-            # self.call_after_refresh(self._schedule_content_update)
-            pass
+            self.call_after_refresh(self._schedule_content_update)
         elif event.key in ("ctrl+f", "ctrl+d", "d"):
             # Page down (vim-style)
             event.prevent_default()
