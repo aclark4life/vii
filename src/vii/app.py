@@ -77,6 +77,7 @@ class GitCommandProvider(Provider):
 
         return [
             ("Status", app._git_status, "Show git status"),
+            ("Log", app._git_log, "Show git commit history"),
             ("Refresh", app._git_refresh, "Refresh git status"),
             ("Switch Branch", app._git_switch_branch, "Switch to a different branch"),
             ("Add Current File", app._git_add_current, "Stage the current file"),
@@ -1304,6 +1305,34 @@ class Vii(App):
         self._update_git_info()
         self._update_header()
         self.notify("Git status refreshed")
+
+    def _git_log(self) -> None:
+        """Show git commit history."""
+        if not self.git_branch:
+            self.notify("Not in a git repository", severity="warning")
+            return
+
+        try:
+            from .git_utils import get_git_log
+
+            current_dir = self._get_current_directory()
+            log_output = get_git_log(current_dir)
+
+            if log_output:
+                # Display log in content panel
+                from rich.text import Text
+
+                text = Text()
+                text.append("📜 Git Log\n\n", style="bold")
+                text.append(log_output)
+
+                content_display = self.query_one("#content-display", Static)
+                content_display.update(text)
+                self.notify("Showing git log")
+            else:
+                self.notify("No git log available", severity="information")
+        except Exception as e:
+            self.notify(f"Git log failed: {e}", severity="error")
 
     def _git_add_current(self) -> None:
         """Add the current file to git."""

@@ -351,3 +351,35 @@ def git_checkout_remote_branch(path: Path, remote_branch: str) -> tuple[bool, st
     except FileNotFoundError:
         return (False, "Git command not found")
 
+
+def get_git_log(path: Path, max_count: int = 50) -> str | None:
+    """Get git log with formatted output.
+
+    Args:
+        path: Path inside a git repository
+        max_count: Maximum number of commits to show (default: 50)
+
+    Returns:
+        Formatted git log output as string, or None if error
+    """
+    try:
+        # Use a nice format with colors and graph
+        result = subprocess.run(
+            [
+                "git",
+                "log",
+                f"--max-count={max_count}",
+                "--graph",
+                "--pretty=format:%C(yellow)%h%Creset %C(cyan)%ad%Creset %C(green)%an%Creset%n  %s%n",
+                "--date=relative",
+            ],
+            cwd=str(path),
+            capture_output=True,
+            check=True,
+            timeout=5,
+            text=True,
+        )
+        return result.stdout if result.stdout else None
+    except (subprocess.CalledProcessError, subprocess.TimeoutExpired, FileNotFoundError):
+        return None
+
