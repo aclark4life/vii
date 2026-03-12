@@ -537,20 +537,20 @@ class Vii(App):
             "tokyo-night": "material",
             "monokai": "monokai",
             "dracula": "dracula",
-            "catppuccin-mocha": "monokai",
-            "catppuccin-frappe": "monokai",
-            "catppuccin-macchiato": "monokai",
+            "catppuccin-mocha": "native",  # Use native instead of monokai
+            "catppuccin-frappe": "native",
+            "catppuccin-macchiato": "native",
             "flexoki": "zenburn",
             "textual-ansi": "native",
             "solarized-dark": "solarized-dark",
-            "rose-pine": "native",
-            "rose-pine-moon": "native",
+            "rose-pine": "zenburn",  # Muted, low-contrast like rose-pine
+            "rose-pine-moon": "zenburn",
             # Light themes
             "textual-light": "friendly",
             "atom-one-light": "friendly",
             "solarized-light": "solarized-light",
             "catppuccin-latte": "friendly",
-            "rose-pine-dawn": "friendly_grayscale",
+            "rose-pine-dawn": "friendly",  # Use friendly for more color
         }
 
         current_theme = self.theme
