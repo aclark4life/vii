@@ -925,43 +925,16 @@ class Vii(App):
         self._syntax_highlight_timer = self.set_timer(0.2, self._start_syntax_highlighting)
 
     def _show_cached_content_only(self) -> None:
-        """Show only cached content instantly - no file I/O.
+        """Do nothing during rapid navigation - let timers handle everything.
 
-        During rapid navigation, we only show a simple "Loading..." indicator.
-        Cached content is deferred to the plain text phase to avoid expensive
-        widget updates blocking cursor movement.
+        This is called on every cursor movement. We do NOTHING here to ensure
+        cursor movement is instant. The 50ms timer will show content.
         """
-        try:
-            tree = self.query_one(DirectoryTree)
-            if not tree.cursor_node or not tree.cursor_node.data:
-                return
-
-            path = tree.cursor_node.data.path
-
-            # Skip if we're already showing this path
-            if path == self._displayed_path:
-                return
-
-            content_display = self.query_one("#content-display", Static)
-
-            if path.is_dir():
-                # Directories are instant and small
-                content_display.update(f"[bold]📁 {path.name}[/bold]\n\n[dim]Directory[/dim]")
-                self.original_content = ""
-                self._displayed_path = path
-            else:
-                # For files, just show minimal loading indicator
-                # Cached content will be shown in _show_plain_text_preview (after 50ms)
-                # This keeps cursor movement instant
-                content_display.update(f"[bold]📄 {path.name}[/bold]\n\n[dim]Loading...[/dim]")
-                self._displayed_path = None  # Mark as not fully loaded
-
-            self.search_matches = []
-            self.current_match_index = -1
-            self.git_log_viewing = False
-            self.git_log_page = 0
-        except Exception:
-            pass
+        # Reset state only - no widget updates at all during rapid navigation
+        self.search_matches = []
+        self.current_match_index = -1
+        self.git_log_viewing = False
+        self.git_log_page = 0
 
     def _show_plain_text_preview(self) -> None:
         """Show plain text or cached content - called after 50ms debounce."""
@@ -973,16 +946,18 @@ class Vii(App):
 
             path = tree.cursor_node.data.path
 
-            # Skip directories (already handled instantly)
-            if path.is_dir():
-                return
-
             # Skip if already displaying this path fully
             if path == self._displayed_path:
                 return
 
             content_display = self.query_one("#content-display", Static)
             scroll_container = self.query_one("#content-scroll", ScrollableContainer)
+
+            if path.is_dir():
+                content_display.update(f"[bold]📁 {path.name}[/bold]\n\n[dim]Directory[/dim]")
+                self.original_content = ""
+                self._displayed_path = path
+                return
 
             # Use cached content if available
             if path in self._rendered_cache:
