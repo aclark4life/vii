@@ -240,3 +240,114 @@ def get_git_blame_file(path: Path, file_path: str) -> str | None:
     except (subprocess.CalledProcessError, subprocess.TimeoutExpired, FileNotFoundError):
         return None
 
+
+def get_git_branches(path: Path) -> dict[str, list[str]] | None:
+    """Get list of local and remote git branches.
+
+    Args:
+        path: Path inside a git repository
+
+    Returns:
+        Dictionary with 'local' and 'remote' branch lists, or None if error
+    """
+    try:
+        # Get local branches
+        result = subprocess.run(
+            ["git", "branch", "--format=%(refname:short)"],
+            cwd=str(path),
+            capture_output=True,
+            check=True,
+            timeout=3,
+            text=True,
+        )
+        local_branches = [b.strip() for b in result.stdout.strip().split("\n") if b.strip()]
+
+        # Get remote branches
+        result = subprocess.run(
+            ["git", "branch", "-r", "--format=%(refname:short)"],
+            cwd=str(path),
+            capture_output=True,
+            check=True,
+            timeout=3,
+            text=True,
+        )
+        remote_branches = [
+            b.strip()
+            for b in result.stdout.strip().split("\n")
+            if b.strip() and not b.strip().endswith("/HEAD")
+        ]
+
+        return {
+            "local": local_branches,
+            "remote": remote_branches,
+        }
+    except (subprocess.CalledProcessError, subprocess.TimeoutExpired, FileNotFoundError):
+        return None
+
+
+def git_checkout_branch(path: Path, branch_name: str) -> tuple[bool, str]:
+    """Checkout a git branch.
+
+    Args:
+        path: Path inside a git repository
+        branch_name: Name of the branch to checkout
+
+    Returns:
+        Tuple of (success: bool, message: str)
+    """
+    try:
+        result = subprocess.run(
+            ["git", "checkout", branch_name],
+            cwd=str(path),
+            capture_output=True,
+            check=True,
+            timeout=5,
+            text=True,
+        )
+        return (True, f"Switched to branch '{branch_name}'")
+    except subprocess.CalledProcessError as e:
+        return (False, e.stderr.strip() if e.stderr else "Failed to checkout branch")
+    except subprocess.TimeoutExpired:
+        return (False, "Git checkout timed out")
+    except FileNotFoundError:
+        return (False, "Git command not found")
+
+
+def git_checkout_remote_branch(path: Path, remote_branch: str) -> tuple[bool, str]:
+    """Checkout a remote branch (creates local tracking branch).
+
+    Args:
+        path: Path inside a git repository
+        remote_branch: Name of the remote branch (e.g., 'origin/feature-branch')
+
+    Returns:
+        Tuple of (success: bool, message: str)
+    """
+    try:
+        # Extract local branch name from remote branch
+        # e.g., 'origin/feature-branch' -> 'feature-branch'
+        if "/" in remote_branch:
+            local_branch = remote_branch.split("/", 1)[1]
+        else:
+            return (False, "Invalid remote branch format")
+
+        # Checkout and create tracking branch
+        result = subprocess.run(
+            ["git", "checkout", "-b", local_branch, remote_branch],
+            cwd=str(path),
+            capture_output=True,
+            check=True,
+            timeout=5,
+            text=True,
+        )
+        return (True, f"Created and switched to branch '{local_branch}' tracking '{remote_branch}'")
+    except subprocess.CalledProcessError as e:
+        # If branch already exists locally, just checkout
+        if "already exists" in (e.stderr or ""):
+            return git_checkout_branch(path, local_branch)
+        return (False, e.stderr.strip() if e.stderr else "Failed to checkout remote branch")
+    except subprocess.TimeoutExpired:
+        return (False, "Git checkout timed out")
+    except FileNotFoundError:
+        return (False, "Git command not found")
+

@@ -78,6 +78,7 @@ class GitCommandProvider(Provider):
         return [
             ("Status", app._git_status, "Show git status"),
             ("Refresh", app._git_refresh, "Refresh git status"),
+            ("Switch Branch", app._git_switch_branch, "Switch to a different branch"),
             ("Add Current File", app._git_add_current, "Stage the current file"),
             ("Add All", app._git_add_all, "Stage all changes"),
             ("Commit", app._git_commit, "Commit staged changes"),
@@ -1439,6 +1440,122 @@ class Vii(App):
                 self.notify("No blame information available", severity="information")
         except Exception as e:
             self.notify(f"Git blame failed: {e}", severity="error")
+
+    def _git_switch_branch(self) -> None:
+        """Show branch selection and switch to selected branch."""
+        if not self.git_branch:
+            self.notify("Not in a git repository", severity="warning")
+            return
+
+        try:
+            from .git_utils import get_git_branches, git_checkout_branch, git_checkout_remote_branch
+            from textual.command import CommandPalette, Provider, Hit, DiscoveryHit
+
+            branches = get_git_branches(self.start_path)
+            if not branches:
+                self.notify("Failed to get branch list", severity="error")
+                return
+
+            current_branch = self.git_branch
+            app = self
+
+            # Create a provider for branch selection
+            class BranchProvider(Provider):
+                """Provider for branch selection."""
+
+                async def discover(self) -> Hits:
+                    """Show all branches."""
+                    # Show local branches first
+                    for branch in branches["local"]:
+                        if branch == current_branch:
+                            yield DiscoveryHit(
+                                f"✓ {branch} (current)",
+                                lambda b=branch: None,  # No-op for current branch
+                                help="Current branch",
+                            )
+                        else:
+                            yield DiscoveryHit(
+                                f"  {branch}",
+                                lambda b=branch: app._do_checkout_branch(b, False),
+                                help="Local branch",
+                            )
+
+                    # Show remote branches
+                    for branch in branches["remote"]:
+                        # Extract local name for comparison
+                        local_name = branch.split("/", 1)[1] if "/" in branch else branch
+                        if local_name not in branches["local"]:
+                            yield DiscoveryHit(
+                                f"  {branch} (remote)",
+                                lambda b=branch: app._do_checkout_branch(b, True),
+                                help="Remote branch - will create local tracking branch",
+                            )
+
+                async def search(self, query: str) -> Hits:
+                    """Search branches."""
+                    matcher = self.matcher(query)
+
+                    # Search local branches
+                    for branch in branches["local"]:
+                        score = matcher.match(branch)
+                        if score > 0:
+                            if branch == current_branch:
+                                yield Hit(
+                                    score,
+                                    matcher.highlight(f"✓ {branch} (current)"),
+                                    lambda b=branch: None,
+                                    help="Current branch",
+                                )
+                            else:
+                                yield Hit(
+                                    score,
+                                    matcher.highlight(f"  {branch}"),
+                                    lambda b=branch: app._do_checkout_branch(b, False),
+                                    help="Local branch",
+                                )
+
+                    # Search remote branches
+                    for branch in branches["remote"]:
+                        score = matcher.match(branch)
+                        if score > 0:
+                            local_name = branch.split("/", 1)[1] if "/" in branch else branch
+                            if local_name not in branches["local"]:
+                                yield Hit(
+                                    score,
+                                    matcher.highlight(f"  {branch} (remote)"),
+                                    lambda b=branch: app._do_checkout_branch(b, True),
+                                    help="Remote branch - will create local tracking branch",
+                                )
+
+            # Show branch selection palette
+            self.push_screen(CommandPalette(providers=[BranchProvider]))
+
+        except Exception as e:
+            self.notify(f"Failed to show branches: {e}", severity="error")
+
+    def _do_checkout_branch(self, branch: str, is_remote: bool) -> None:
+        """Actually perform the branch checkout.
+
+        Args:
+            branch: Branch name to checkout
+            is_remote: Whether this is a remote branch
+        """
+        try:
+            from .git_utils import git_checkout_branch, git_checkout_remote_branch
+
+            if is_remote:
+                success, message = git_checkout_remote_branch(self.start_path, branch)
+            else:
+                success, message = git_checkout_branch(self.start_path, branch)
+
+            if success:
+                self.notify(message, severity="information")
+                # Refresh git info to update header
+                self._update_git_info()
+            else:
+                self.notify(message, severity="error")
+        except Exception as e:
+            self.notify(f"Checkout failed: {e}", severity="error")
 
     def _change_theme(self, theme_name: str) -> None:
         """Change the application theme."""
