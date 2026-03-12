@@ -84,6 +84,7 @@ class GitCommandProvider(Provider):
             ("Push", app._git_push, "Push to remote"),
             ("Pull", app._git_pull, "Pull from remote"),
             ("Diff Current File", app._git_diff_current, "Show diff for current file"),
+            ("Blame Current File", app._git_blame_current, "Show git blame for current file"),
         ]
 
     async def discover(self) -> Hits:
@@ -1398,6 +1399,46 @@ class Vii(App):
                 self.notify("No changes to show", severity="information")
         except Exception as e:
             self.notify(f"Git diff failed: {e}", severity="error")
+
+    def _git_blame_current(self) -> None:
+        """Show git blame for the current file."""
+        if not self.git_branch:
+            self.notify("Not in a git repository", severity="warning")
+            return
+
+        tree = self.query_one(DirectoryTree)
+        if not (tree.cursor_node and tree.cursor_node.data):
+            self.notify("No file selected", severity="warning")
+            return
+
+        path = tree.cursor_node.data.path
+        if not path.is_file():
+            self.notify("Cannot blame a directory", severity="warning")
+            return
+
+        try:
+            from .git_utils import get_git_blame_file
+
+            rel_path = path.relative_to(self.start_path)
+            blame_output = get_git_blame_file(self.start_path, str(rel_path))
+
+            if blame_output:
+                # Display blame in content panel with syntax highlighting
+                from rich.syntax import Syntax
+                syntax = Syntax(
+                    blame_output,
+                    "diff",  # Use diff lexer for git blame output
+                    theme=self._get_syntax_theme(),
+                    line_numbers=False,
+                    word_wrap=False,
+                )
+                content_display = self.query_one("#content-display", Static)
+                content_display.update(syntax)
+                self.notify(f"Showing blame for {path.name}")
+            else:
+                self.notify("No blame information available", severity="information")
+        except Exception as e:
+            self.notify(f"Git blame failed: {e}", severity="error")
 
     def _change_theme(self, theme_name: str) -> None:
         """Change the application theme."""

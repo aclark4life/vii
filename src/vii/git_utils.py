@@ -159,3 +159,84 @@ def get_git_diff(path: Path, file_path: str) -> str | None:
     except (subprocess.CalledProcessError, subprocess.TimeoutExpired, FileNotFoundError):
         return None
 
+
+def get_git_blame_line(path: Path, file_path: str, line_number: int) -> dict[str, str] | None:
+    """Get git blame information for a specific line.
+
+    Args:
+        path: Path inside a git repository
+        file_path: Relative path to the file
+        line_number: Line number (1-based)
+
+    Returns:
+        Dictionary with blame info (commit, author, date, message) or None if error
+    """
+    try:
+        # Use porcelain format for easier parsing
+        result = subprocess.run(
+            ["git", "blame", "--porcelain", "-L", f"{line_number},{line_number}", file_path],
+            cwd=str(path),
+            capture_output=True,
+            check=True,
+            timeout=2,
+            text=True,
+        )
+
+        if not result.stdout:
+            return None
+
+        # Parse porcelain format
+        lines = result.stdout.strip().split("\n")
+        if not lines:
+            return None
+
+        # First line: commit hash
+        commit_hash = lines[0].split()[0]
+
+        blame_info = {
+            "commit": commit_hash[:8],  # Short hash
+            "author": "",
+            "date": "",
+            "message": "",
+        }
+
+        for line in lines:
+            if line.startswith("author "):
+                blame_info["author"] = line[7:]
+            elif line.startswith("author-time "):
+                # Convert timestamp to readable date
+                import datetime
+                timestamp = int(line[12:])
+                date = datetime.datetime.fromtimestamp(timestamp)
+                blame_info["date"] = date.strftime("%Y-%m-%d")
+            elif line.startswith("summary "):
+                blame_info["message"] = line[8:]
+
+        return blame_info
+    except (subprocess.CalledProcessError, subprocess.TimeoutExpired, FileNotFoundError):
+        return None
+
+
+def get_git_blame_file(path: Path, file_path: str) -> str | None:
+    """Get git blame for an entire file.
+
+    Args:
+        path: Path inside a git repository
+        file_path: Relative path to the file
+
+    Returns:
+        Blame output as string, or None if error
+    """
+    try:
+        result = subprocess.run(
+            ["git", "blame", "--date=short", file_path],
+            cwd=str(path),
+            capture_output=True,
+            check=True,
+            timeout=5,
+            text=True,
+        )
+        return result.stdout if result.stdout else None
+    except (subprocess.CalledProcessError, subprocess.TimeoutExpired, FileNotFoundError):
+        return None
+
