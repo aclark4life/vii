@@ -17,6 +17,153 @@ from textual.containers import Horizontal, ScrollableContainer, Vertical
 from textual.reactive import reactive
 from textual.widget import Widget
 from textual.widgets import DirectoryTree, Footer, Header, Input, Static
+from textual.command import Hit, Hits, Provider
+from textual.app import SystemCommand
+from textual.screen import Screen as TextualScreen
+
+from vii.git_utils import (
+    get_git_branch,
+    get_git_file_status,
+    get_git_status_summary,
+    is_git_repo,
+)
+
+
+class GitDirectoryTree(DirectoryTree):
+    """DirectoryTree with git status indicators."""
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.git_file_status: dict[str, str] = {}
+
+    def render_label(self, node, base_style, style):
+        """Render a label with git status indicator."""
+        label = super().render_label(node, base_style, style)
+
+        # Add git status indicator if available
+        if node.data and hasattr(node.data, "path"):
+            path = node.data.path
+            if path.is_file():
+                # Get relative path from the tree root
+                try:
+                    tree_root = Path(self.path)
+                    rel_path = str(path.relative_to(tree_root))
+
+                    if rel_path in self.git_file_status:
+                        status_code = self.git_file_status[rel_path]
+                        # Map status codes to indicators
+                        if "M" in status_code:
+                            label = Text("~", style="yellow") + Text(" ") + label
+                        elif "A" in status_code:
+                            label = Text("+", style="green") + Text(" ") + label
+                        elif "D" in status_code:
+                            label = Text("-", style="red") + label
+                        elif "?" in status_code:
+                            label = Text("?", style="cyan") + Text(" ") + label
+                except (ValueError, AttributeError):
+                    pass
+
+        return label
+
+
+class GitCommandProvider(Provider):
+    """Command provider for git commands with submenu."""
+
+    @property
+    def _git_commands(self):
+        """Get the list of git commands."""
+        app = self.app
+        assert isinstance(app, Vii)
+
+        return [
+            ("Status", app._git_status, "Show git status"),
+            ("Refresh", app._git_refresh, "Refresh git status"),
+            ("Add Current File", app._git_add_current, "Stage the current file"),
+            ("Add All", app._git_add_all, "Stage all changes"),
+            ("Commit", app._git_commit, "Commit staged changes"),
+            ("Push", app._git_push, "Push to remote"),
+            ("Pull", app._git_pull, "Pull from remote"),
+            ("Diff Current File", app._git_diff_current, "Show diff for current file"),
+        ]
+
+    async def discover(self) -> Hits:
+        """Show top-level Git menu when palette is opened."""
+        app = self.app
+        assert isinstance(app, Vii)
+
+        # Only show git menu if in a git repository
+        if not app.git_branch:
+            return
+
+        from textual.command import DiscoveryHit
+
+        # Yield a single "Git" menu item
+        yield DiscoveryHit(
+            "Git",
+            self._show_git_commands,
+            help=f"Git commands for branch: {app.git_branch}",
+        )
+
+    async def _show_git_commands(self) -> None:
+        """Show git subcommands in the palette."""
+        from textual.command import CommandPalette
+
+        parent_provider = self
+
+        # Create a provider for git subcommands
+        class GitSubCommandProvider(Provider):
+            """Provider for git subcommands."""
+
+            async def discover(self) -> Hits:
+                """Show all git commands."""
+                from textual.command import DiscoveryHit
+
+                for command_name, callback, help_text in parent_provider._git_commands:
+                    yield DiscoveryHit(
+                        command_name,
+                        callback,
+                        help=help_text,
+                    )
+
+            async def search(self, query: str) -> Hits:
+                """Search git commands."""
+                matcher = self.matcher(query)
+
+                for command_name, callback, help_text in parent_provider._git_commands:
+                    score = matcher.match(command_name)
+                    if score > 0:
+                        yield Hit(
+                            score,
+                            matcher.highlight(command_name),
+                            callback,
+                            help=help_text,
+                        )
+
+        # Push a new command palette with git subcommands
+        self.app.push_screen(
+            CommandPalette(providers=[GitSubCommandProvider])
+        )
+
+    async def search(self, query: str) -> Hits:
+        """Search for git menu."""
+        matcher = self.matcher(query)
+
+        app = self.app
+        assert isinstance(app, Vii)
+
+        # Only show git menu if in a git repository
+        if not app.git_branch:
+            return
+
+        # Match against "Git"
+        score = matcher.match("Git")
+        if score > 0:
+            yield Hit(
+                score,
+                matcher.highlight("Git"),
+                self._show_git_commands,
+                help=f"Git commands for branch: {app.git_branch}",
+            )
 
 
 class VerticalSplitter(Widget):
@@ -80,9 +227,12 @@ class Vii(App):
     """vii - Terminal file browser."""
 
     TITLE = "🤖 vii"
+    COMMANDS = App.COMMANDS | {GitCommandProvider}
 
     # Reactive variable for sidebar width (in columns)
     sidebar_width: reactive[int] = reactive(30)
+    # Reactive variable for subtitle (git branch info)
+    sub_title: reactive[str] = reactive("")
 
     CSS = """
     Screen {
@@ -162,6 +312,8 @@ class Vii(App):
         Binding("ctrl+c", "quit", "Quit", show=False),
         Binding("tab", "focus_next", "Tab", show=False),
         Binding("shift+tab", "focus_previous", "Shift+Tab", show=False),
+        # Command palette
+        Binding("ctrl+p", "command_palette", "palette"),
         # Vi-style navigation (shown in footer)
         Binding("j", "cursor_down", "Down"),
         Binding("k", "cursor_up", "Up"),
@@ -197,6 +349,11 @@ class Vii(App):
         self.sidebar_search_query = ""
         self.sidebar_search_matches: list = []  # Tree nodes with matches
         self.sidebar_current_match_index = -1
+        # Git state
+        self.git_branch: str | None = None
+        self.git_status: dict[str, int] = {}
+        self.git_file_status: dict[str, str] = {}
+        self._update_git_info()
 
     def set_sidebar_width(self, width: int) -> None:
         """Set the sidebar width, with bounds checking."""
@@ -269,7 +426,9 @@ class Vii(App):
         yield Header()
 
         with Vertical(id="sidebar"):
-            yield DirectoryTree(str(self.start_path))
+            tree = GitDirectoryTree(str(self.start_path))
+            tree.git_file_status = self.git_file_status
+            yield tree
             with Horizontal(id="sidebar-search-container"):
                 yield Input(
                     placeholder="Search files...",
@@ -306,6 +465,47 @@ class Vii(App):
 
         # Subscribe to theme changes to update syntax highlighting
         self.theme_changed_signal.subscribe(self, self._on_theme_changed)
+
+        # Update header with git info
+        self._update_header()
+
+    def _update_git_info(self) -> None:
+        """Update git repository information for the current directory."""
+        if is_git_repo(self.start_path):
+            self.git_branch = get_git_branch(self.start_path)
+            self.git_status = get_git_status_summary(self.start_path)
+            self.git_file_status = get_git_file_status(self.start_path)
+
+            # Update the tree's git status
+            try:
+                tree = self.query_one(GitDirectoryTree)
+                tree.git_file_status = self.git_file_status
+                tree.refresh()
+            except Exception:
+                pass  # Tree may not be mounted yet
+        else:
+            self.git_branch = None
+            self.git_status = {}
+            self.git_file_status = {}
+
+    def _update_header(self) -> None:
+        """Update the header with current git information."""
+        if self.git_branch:
+            # Build status indicators using emojis/symbols
+            status_parts = []
+            if self.git_status.get("modified", 0) > 0:
+                status_parts.append(f"~{self.git_status['modified']}")
+            if self.git_status.get("added", 0) > 0:
+                status_parts.append(f"+{self.git_status['added']}")
+            if self.git_status.get("deleted", 0) > 0:
+                status_parts.append(f"-{self.git_status['deleted']}")
+            if self.git_status.get("untracked", 0) > 0:
+                status_parts.append(f"?{self.git_status['untracked']}")
+
+            status_str = " ".join(status_parts) if status_parts else "✓"
+            self.sub_title = f"📂 {self.start_path} 🌿 {self.git_branch} {status_str}"
+        else:
+            self.sub_title = f"📂 {self.start_path}"
 
     def _read_file_content(self, path: Path, max_size: int = 100000) -> str:
         """Read file content, handling binary files and size limits."""
@@ -466,14 +666,19 @@ class Vii(App):
             old_tree = self.query_one(DirectoryTree)
             old_tree.remove()
 
-            # Create and mount a new tree with the new directory
-            sidebar = self.query_one("#sidebar", Vertical)
-            new_tree = DirectoryTree(str(directory))
-            sidebar.mount(new_tree, before=0)  # Mount at the beginning
-            new_tree.focus()
-
             # Update the start path
             self.start_path = directory
+
+            # Update git info and header
+            self._update_git_info()
+            self._update_header()
+
+            # Create and mount a new tree with the new directory
+            sidebar = self.query_one("#sidebar", Vertical)
+            new_tree = GitDirectoryTree(str(directory))
+            new_tree.git_file_status = self.git_file_status
+            sidebar.mount(new_tree, before=0)  # Mount at the beginning
+            new_tree.focus()
 
             # Update content display
             self.call_after_refresh(self._update_content_display)
@@ -1021,6 +1226,188 @@ class Vii(App):
             self.notify(f"Opened: {file_path.name}", severity="information")
         except Exception as e:
             self.notify(f"Error opening file: {e}", severity="error")
+
+    # Git command implementations
+    def _git_status(self) -> None:
+        """Show git status."""
+        if not self.git_branch:
+            self.notify("Not in a git repository", severity="warning")
+            return
+
+        try:
+            result = subprocess.run(
+                ["git", "status", "--short"],
+                cwd=str(self.start_path),
+                capture_output=True,
+                text=True,
+                timeout=5,
+            )
+            if result.stdout:
+                self.notify(f"Git status:\n{result.stdout}")
+            else:
+                self.notify("Working tree clean", severity="information")
+        except Exception as e:
+            self.notify(f"Git status failed: {e}", severity="error")
+
+    def _git_refresh(self) -> None:
+        """Refresh git status."""
+        self._update_git_info()
+        self._update_header()
+        self.notify("Git status refreshed")
+
+    def _git_add_current(self) -> None:
+        """Add the current file to git."""
+        if not self.git_branch:
+            self.notify("Not in a git repository", severity="warning")
+            return
+
+        tree = self.query_one(DirectoryTree)
+        if not (tree.cursor_node and tree.cursor_node.data):
+            self.notify("No file selected", severity="warning")
+            return
+
+        path = tree.cursor_node.data.path
+        if not path.is_file():
+            self.notify("Cannot add a directory", severity="warning")
+            return
+
+        try:
+            rel_path = path.relative_to(self.start_path)
+            subprocess.run(
+                ["git", "add", str(rel_path)],
+                cwd=str(self.start_path),
+                check=True,
+                timeout=5,
+            )
+            self.notify(f"Added {path.name} to git")
+            self._git_refresh()
+        except Exception as e:
+            self.notify(f"Git add failed: {e}", severity="error")
+
+    def _git_add_all(self) -> None:
+        """Add all changes to git."""
+        if not self.git_branch:
+            self.notify("Not in a git repository", severity="warning")
+            return
+
+        try:
+            subprocess.run(
+                ["git", "add", "."],
+                cwd=str(self.start_path),
+                check=True,
+                timeout=5,
+            )
+            self.notify("Added all changes to git")
+            self._git_refresh()
+        except Exception as e:
+            self.notify(f"Git add failed: {e}", severity="error")
+
+    def _git_commit(self) -> None:
+        """Commit changes (opens editor for commit message)."""
+        if not self.git_branch:
+            self.notify("Not in a git repository", severity="warning")
+            return
+
+        self.notify("Opening editor for commit message...")
+        try:
+            subprocess.run(
+                ["git", "commit"],
+                cwd=str(self.start_path),
+                timeout=300,  # 5 minutes for commit message
+            )
+            self._git_refresh()
+        except Exception as e:
+            self.notify(f"Git commit failed: {e}", severity="error")
+
+    def _git_push(self) -> None:
+        """Push changes to remote."""
+        if not self.git_branch:
+            self.notify("Not in a git repository", severity="warning")
+            return
+
+        self.notify("Pushing to remote...")
+        try:
+            result = subprocess.run(
+                ["git", "push"],
+                cwd=str(self.start_path),
+                capture_output=True,
+                text=True,
+                timeout=60,
+            )
+            if result.returncode == 0:
+                self.notify("Pushed successfully")
+            else:
+                self.notify(f"Push failed: {result.stderr}", severity="error")
+        except Exception as e:
+            self.notify(f"Git push failed: {e}", severity="error")
+
+    def _git_pull(self) -> None:
+        """Pull changes from remote."""
+        if not self.git_branch:
+            self.notify("Not in a git repository", severity="warning")
+            return
+
+        self.notify("Pulling from remote...")
+        try:
+            result = subprocess.run(
+                ["git", "pull"],
+                cwd=str(self.start_path),
+                capture_output=True,
+                text=True,
+                timeout=60,
+            )
+            if result.returncode == 0:
+                self.notify("Pulled successfully")
+                self._git_refresh()
+            else:
+                self.notify(f"Pull failed: {result.stderr}", severity="error")
+        except Exception as e:
+            self.notify(f"Git pull failed: {e}", severity="error")
+
+    def _git_diff_current(self) -> None:
+        """Show git diff for the current file."""
+        if not self.git_branch:
+            self.notify("Not in a git repository", severity="warning")
+            return
+
+        tree = self.query_one(DirectoryTree)
+        if not (tree.cursor_node and tree.cursor_node.data):
+            self.notify("No file selected", severity="warning")
+            return
+
+        path = tree.cursor_node.data.path
+        if not path.is_file():
+            self.notify("Cannot diff a directory", severity="warning")
+            return
+
+        try:
+            rel_path = path.relative_to(self.start_path)
+            result = subprocess.run(
+                ["git", "diff", "HEAD", str(rel_path)],
+                cwd=str(self.start_path),
+                capture_output=True,
+                text=True,
+                timeout=5,
+            )
+            if result.stdout:
+                # Display diff in content panel
+                content_display = self.query_one("#content-display", Static)
+                content_display.update(f"[bold]Git Diff: {path.name}[/bold]\n\n{result.stdout}")
+                self.notify(f"Showing diff for {path.name}")
+            else:
+                self.notify("No changes to show", severity="information")
+        except Exception as e:
+            self.notify(f"Git diff failed: {e}", severity="error")
+
+    def _change_theme(self, theme_name: str) -> None:
+        """Change the application theme."""
+        try:
+            self.theme = theme_name
+            self.notify(f"Theme changed to {theme_name}")
+            # Re-render content with new syntax theme
+            self._update_content_display()
+        except Exception as e:
+            self.notify(f"Failed to change theme: {e}", severity="error")
 
 
 def main():
