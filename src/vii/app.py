@@ -16,6 +16,7 @@ from textual.binding import Binding
 from textual.command import Hit, Hits, Provider
 from textual.containers import Horizontal, ScrollableContainer, Vertical
 from textual.reactive import reactive
+from textual.timer import Timer
 from textual.widget import Widget
 from textual.widgets import DirectoryTree, Footer, Header, Input, Static
 
@@ -267,6 +268,7 @@ class Vii(App):
         width: 100%;
         height: 100%;
         border: solid $panel;
+        scrollbar-gutter: stable;
     }
 
     #content-scroll:focus {
@@ -359,6 +361,17 @@ class Vii(App):
         self.git_log_page: int = 0
         self.git_log_page_size: int = 50
         self.git_log_viewing: bool = False
+        # Performance optimization: cache rendered content
+        self._content_cache: dict[tuple[str, str, str], Group | Text | str] = {}
+        self._last_rendered_path: Path | None = None
+        self._last_rendered_theme: str = ""
+        # Cache for search-highlighted content
+        self._search_highlight_cache: dict[tuple[str, str, int], Text] = {}
+        # Track if we're currently updating to prevent redundant updates
+        self._is_updating_content: bool = False
+        # Debounce content updates during rapid navigation
+        self._content_update_timer: Timer | None = None
+        self._pending_content_update: bool = False
         self._update_git_info()
 
     def set_sidebar_width(self, width: int) -> None:
@@ -560,6 +573,42 @@ class Vii(App):
         except Exception as e:
             return f"[dim]Cannot read file: {e}[/dim]"
 
+    def _should_syntax_highlight(self, content: str, path: Path) -> bool:
+        """Determine if syntax highlighting should be applied based on file size and content.
+
+        Args:
+            content: The file content
+            path: The file path
+
+        Returns:
+            True if syntax highlighting should be applied, False otherwise
+        """
+        # Skip syntax highlighting for very large files (>50KB or >2000 lines)
+        # to improve scrolling performance
+        if len(content) > 50000:
+            return False
+
+        line_count = content.count("\n")
+        if line_count > 2000:
+            return False
+
+        return True
+
+    def _manage_cache_size(self) -> None:
+        """Manage cache sizes to prevent excessive memory usage."""
+        # Limit content cache to 20 most recent files
+        if len(self._content_cache) > 20:
+            # Remove oldest entries (simple FIFO approach)
+            items_to_remove = len(self._content_cache) - 20
+            for _ in range(items_to_remove):
+                self._content_cache.pop(next(iter(self._content_cache)))
+
+        # Limit search highlight cache to 50 entries
+        if len(self._search_highlight_cache) > 50:
+            items_to_remove = len(self._search_highlight_cache) - 50
+            for _ in range(items_to_remove):
+                self._search_highlight_cache.pop(next(iter(self._search_highlight_cache)))
+
     def _get_syntax_theme(self) -> str:
         """Get the appropriate syntax highlighting theme based on the current app theme."""
         # Map Textual themes to Pygments/Rich syntax themes
@@ -607,8 +656,10 @@ class Vii(App):
         Args:
             theme: The new Theme object (from theme_changed_signal).
         """
-        # Re-render the content with the new syntax theme
-        self._update_content_display()
+        # Clear cache when theme changes since syntax highlighting colors change
+        self._content_cache.clear()
+        # Re-render the content with the new syntax theme (force update)
+        self._update_content_display(force=True)
 
     def _get_syntax_lexer(self, path: Path) -> str | None:
         """Get the Pygments lexer name for a file based on extension."""
@@ -852,51 +903,127 @@ class Vii(App):
         except Exception as e:
             self.notify(f"Cannot reload tree: {e}", severity="error")
 
-    def _update_content_display(self) -> None:
-        """Update the content display based on the currently highlighted tree node."""
+    def _schedule_content_update(self, delay: float = 0.03) -> None:
+        """Schedule a debounced content update to avoid jitter during rapid navigation.
+
+        Args:
+            delay: Delay in seconds before updating (default 30ms)
+        """
+        # Cancel any pending update
+        if self._content_update_timer is not None:
+            self._content_update_timer.stop()
+
+        # Schedule new update
+        self._pending_content_update = True
+        self._content_update_timer = self.set_timer(delay, self._execute_pending_content_update)
+
+    def _execute_pending_content_update(self) -> None:
+        """Execute the pending content update."""
+        if self._pending_content_update:
+            self._pending_content_update = False
+            self._update_content_display()
+            self._update_git_info()
+
+    def _update_content_display(self, force: bool = False) -> None:
+        """Update the content display based on the currently highlighted tree node.
+
+        Args:
+            force: If True, force update even if the same path is already displayed
+        """
         try:
+            # Prevent redundant updates
+            if self._is_updating_content and not force:
+                return
+
             tree = self.query_one(DirectoryTree)
             if tree.cursor_node and tree.cursor_node.data:
                 path = tree.cursor_node.data.path
-                content_display = self.query_one("#content-display", Static)
-                scroll_container = self.query_one("#content-scroll", ScrollableContainer)
 
-                if path.is_dir():
-                    # Display folder icon for directories
-                    content_display.update(f"[bold]📁 {path.name}[/bold]\n\n[dim]Directory[/dim]")
-                    self.original_content = ""
-                else:
-                    # For files, show file icon, name, and contents
-                    content = self._read_file_content(path)
-                    self.original_content = content
+                # Skip update if we're already showing this path (unless forced)
+                # and theme hasn't changed
+                current_theme = self._get_syntax_theme()
+                if (
+                    not force
+                    and self._last_rendered_path == path
+                    and self._last_rendered_theme == current_theme
+                    and not self.search_query
+                ):  # Always update if there's an active search
+                    return
 
-                    # Check if we can syntax highlight
-                    lexer = self._get_syntax_lexer(path)
-                    if lexer and not content.startswith("[dim]"):
-                        # Use syntax highlighting with theme-aware color scheme
-                        syntax = Syntax(
-                            content,
-                            lexer,
-                            theme=self._get_syntax_theme(),
-                            line_numbers=True,
+                self._is_updating_content = True
+                try:
+                    content_display = self.query_one("#content-display", Static)
+                    scroll_container = self.query_one("#content-scroll", ScrollableContainer)
+
+                    if path.is_dir():
+                        # Display folder icon for directories
+                        content_display.update(
+                            f"[bold]📁 {path.name}[/bold]\n\n[dim]Directory[/dim]"
                         )
-                        # Combine header and syntax
-                        header = Text(f"📄 {path.name}\n\n", style="bold")
-                        content_display.update(Group(header, syntax))
+                        self.original_content = ""
+                        self._last_rendered_path = path
                     else:
-                        # Plain text display
-                        content_display.update(f"[bold]📄 {path.name}[/bold]\n\n{content}")
+                        # For files, show file icon, name, and contents
+                        content = self._read_file_content(path)
+                        self.original_content = content
 
-                # Reset scroll position to top when content changes
-                scroll_container.scroll_home(animate=False)
-                # Clear search matches when file changes
-                self.search_matches = []
-                self.current_match_index = -1
-                # Reset git log viewing state
-                self.git_log_viewing = False
-                self.git_log_page = 0
+                        # Check cache first for performance
+                        cache_key = (str(path), content, current_theme)
+
+                        if cache_key in self._content_cache:
+                            # Use cached rendered content
+                            content_display.update(self._content_cache[cache_key])
+                        else:
+                            # Check if we can syntax highlight
+                            lexer = self._get_syntax_lexer(path)
+                            should_highlight = self._should_syntax_highlight(content, path)
+
+                            if lexer and not content.startswith("[dim]") and should_highlight:
+                                # Use syntax highlighting with theme-aware color scheme
+                                syntax = Syntax(
+                                    content,
+                                    lexer,
+                                    theme=current_theme,
+                                    line_numbers=True,
+                                )
+                                # Combine header and syntax
+                                header = Text(f"📄 {path.name}\n\n", style="bold")
+                                rendered_content = Group(header, syntax)
+                                # Cache the rendered content
+                                self._content_cache[cache_key] = rendered_content
+                                content_display.update(rendered_content)
+                                # Manage cache size to prevent memory bloat
+                                self._manage_cache_size()
+                            else:
+                                # Plain text display (for large files or unsupported types)
+                                if not should_highlight and lexer:
+                                    # Add note that syntax highlighting was skipped
+                                    note = "[dim](large file - syntax highlighting disabled)[/dim]"
+                                    plain_content = (
+                                        f"[bold]📄 {path.name}[/bold] {note}\n\n{content}"
+                                    )
+                                else:
+                                    plain_content = f"[bold]📄 {path.name}[/bold]\n\n{content}"
+                                self._content_cache[cache_key] = plain_content
+                                content_display.update(plain_content)
+                                # Manage cache size to prevent memory bloat
+                                self._manage_cache_size()
+
+                        self._last_rendered_path = path
+                        self._last_rendered_theme = current_theme
+
+                    # Reset scroll position to top when content changes
+                    scroll_container.scroll_home(animate=False)
+                    # Clear search matches when file changes
+                    self.search_matches = []
+                    self.current_match_index = -1
+                    # Reset git log viewing state
+                    self.git_log_viewing = False
+                    self.git_log_page = 0
+                finally:
+                    self._is_updating_content = False
         except Exception:
-            pass
+            self._is_updating_content = False
 
     def on_key(self, event: events.Key) -> None:
         """Handle key presses for vi-style navigation."""
@@ -928,15 +1055,15 @@ class Vii(App):
             action_key = key_map[event.key]
 
             if content_focused:
-                # Control the content scroll panel
+                # Control the content scroll panel - disable animation for smoother scrolling
                 if action_key == "down":
-                    scroll_container.scroll_down()
+                    scroll_container.scroll_down(animate=False)
                 elif action_key == "up":
-                    scroll_container.scroll_up()
+                    scroll_container.scroll_up(animate=False)
                 elif action_key == "home":
-                    scroll_container.scroll_home()
+                    scroll_container.scroll_home(animate=False)
                 elif action_key == "end":
-                    scroll_container.scroll_end()
+                    scroll_container.scroll_end(animate=False)
                 # h/l do nothing in content panel
             else:
                 # Control the directory tree
@@ -961,35 +1088,33 @@ class Vii(App):
                 elif action_key == "end":
                     tree.action_scroll_end()
 
-                # Update the content display and git info after cursor movement
-                self._update_content_display()
-                self._update_git_info()
+                # Schedule debounced content update to avoid jitter during rapid navigation
+                self._schedule_content_update()
+                # Don't update git info during navigation - it will update when content updates
         elif event.key in arrow_keys and not content_focused:
             # Arrow keys are handled by the tree widget, but we still need to update display
             # Use call_after_refresh to ensure the tree has processed the key first
             def update_after_arrow():
-                self._update_content_display()
-                self._update_git_info()
+                self._schedule_content_update()
+                # Don't update git info during navigation - it will update when content updates
 
             self.call_after_refresh(update_after_arrow)
         elif event.key in ("ctrl+f", "ctrl+d", "d"):
             # Page down (vim-style)
             event.prevent_default()
             if content_focused:
-                scroll_container.scroll_page_down()
+                scroll_container.scroll_page_down(animate=False)
             else:
                 tree.action_page_down()
-                self._update_content_display()
-                self._update_git_info()
+                self._schedule_content_update()
         elif event.key in ("ctrl+b", "ctrl+u", "u"):
             # Page up (vim-style)
             event.prevent_default()
             if content_focused:
-                scroll_container.scroll_page_up()
+                scroll_container.scroll_page_up(animate=False)
             else:
                 tree.action_page_up()
-                self._update_content_display()
-                self._update_git_info()
+                self._schedule_content_update()
         elif content_focused and event.key == "slash":
             # Open content search
             event.prevent_default()
@@ -1194,24 +1319,35 @@ class Vii(App):
                 path = tree.cursor_node.data.path
                 if path.is_file():
                     content = self.original_content
-                    # Check if we can syntax highlight
-                    lexer = self._get_syntax_lexer(path)
-                    if lexer and not content.startswith("[dim]"):
-                        # Use syntax highlighting with theme-aware color scheme
-                        syntax = Syntax(
-                            content,
-                            lexer,
-                            theme=self._get_syntax_theme(),
-                            line_numbers=True,
-                        )
-                        # Combine header and syntax
-                        header = Text(f"📄 {path.name}\n\n", style="bold")
-                        content_display.update(Group(header, syntax))
+                    current_theme = self._get_syntax_theme()
+                    cache_key = (str(path), content, current_theme)
+
+                    # Use cached content if available for better performance
+                    if cache_key in self._content_cache:
+                        content_display.update(self._content_cache[cache_key])
                     else:
-                        # Plain text display
-                        content_display.update(
-                            f"[bold]📄 {path.name}[/bold]\n\n{self.original_content}"
-                        )
+                        # Check if we can syntax highlight
+                        lexer = self._get_syntax_lexer(path)
+                        if lexer and not content.startswith("[dim]"):
+                            # Use syntax highlighting with theme-aware color scheme
+                            syntax = Syntax(
+                                content,
+                                lexer,
+                                theme=current_theme,
+                                line_numbers=True,
+                            )
+                            # Combine header and syntax
+                            header = Text(f"📄 {path.name}\n\n", style="bold")
+                            rendered_content = Group(header, syntax)
+                            self._content_cache[cache_key] = rendered_content
+                            content_display.update(rendered_content)
+                        else:
+                            # Plain text display
+                            plain_content = (
+                                f"[bold]📄 {path.name}[/bold]\n\n{self.original_content}"
+                            )
+                            self._content_cache[cache_key] = plain_content
+                            content_display.update(plain_content)
 
     def _perform_search(self, query: str) -> None:
         """Perform search and highlight matches."""
@@ -1219,7 +1355,11 @@ class Vii(App):
             self._clear_search_highlights()
             self.search_matches = []
             self.current_match_index = -1
+            self._search_highlight_cache.clear()
             return
+
+        # Clear search highlight cache when starting a new search
+        self._search_highlight_cache.clear()
 
         self.search_query = query
         tree = self.query_one(DirectoryTree)
@@ -1269,6 +1409,13 @@ class Vii(App):
 
         content = self.original_content
 
+        # Check cache for this specific match index
+        cache_key = (content, self.search_query, self.current_match_index)
+        if cache_key in self._search_highlight_cache:
+            content_display = self.query_one("#content-display", Static)
+            content_display.update(self._search_highlight_cache[cache_key])
+            return
+
         # Build Rich Text object with highlighting and line numbers
         text = Text()
         text.append(f"📄 {path.name}\n\n", style="bold")
@@ -1305,6 +1452,11 @@ class Vii(App):
             if line_num < len(lines):
                 text.append("\n")
 
+        # Cache the highlighted text for this match index
+        self._search_highlight_cache[cache_key] = text
+        # Manage cache size to prevent memory bloat
+        self._manage_cache_size()
+
         content_display = self.query_one("#content-display", Static)
         content_display.update(text)
 
@@ -1319,8 +1471,8 @@ class Vii(App):
         match_line = self.search_matches[self.current_match_index]
         # Add 2 for the header (icon + filename + blank line)
         target_line = match_line + 3
-        # Scroll to approximate position
-        scroll_container.scroll_to(y=target_line, animate=True)
+        # Scroll to approximate position - disable animation for smoother performance
+        scroll_container.scroll_to(y=target_line, animate=False)
 
     def _goto_next_match(self) -> None:
         """Go to the next search match."""
@@ -1358,12 +1510,12 @@ class Vii(App):
     def action_page_up(self) -> None:
         """Scroll the content panel up by one page."""
         scroll_container = self.query_one("#content-scroll", ScrollableContainer)
-        scroll_container.scroll_page_up()
+        scroll_container.scroll_page_up(animate=False)
 
     def action_page_down(self) -> None:
         """Scroll the content panel down by one page."""
         scroll_container = self.query_one("#content-scroll", ScrollableContainer)
-        scroll_container.scroll_page_down()
+        scroll_container.scroll_page_down(animate=False)
 
     def on_directory_tree_file_selected(self, event: DirectoryTree.FileSelected) -> None:
         """Handle file selection from the directory tree - keep focus in sidebar."""
