@@ -324,6 +324,7 @@ class Vii(App):
         Binding("d", "page_down", "Page Down"),
         Binding("u", "page_up", "Page Up"),
         Binding("e", "edit_file", "Edit"),
+        Binding("s", "open_shell", "Shell"),
         # Arrow keys still work but hidden from footer
         Binding("down", "cursor_down", "Down", show=False),
         Binding("up", "cursor_up", "Up", show=False),
@@ -1399,6 +1400,39 @@ class Vii(App):
                 self._open_in_editor(path)
             else:
                 self.notify("Cannot edit a directory", severity="warning")
+
+    def action_open_shell(self) -> None:
+        """Open a shell in the current working directory."""
+        tree = self.query_one(DirectoryTree)
+        if tree.cursor_node and tree.cursor_node.data:
+            path = tree.cursor_node.data.path
+            # If it's a file, use its parent directory
+            cwd = path.parent if path.is_file() else path
+            self._open_shell(cwd)
+        else:
+            # Fall back to start_path if no node is selected
+            self._open_shell(self.start_path)
+
+    def _open_shell(self, directory: Path) -> None:
+        """Open a shell in the specified directory."""
+        try:
+            # Detect the user's shell
+            shell = os.environ.get("SHELL", "/bin/sh")
+
+            # Suspend the Textual app to give control back to the terminal
+            with self.suspend():
+                # Run the shell in the specified directory
+                result = subprocess.run(
+                    [shell],
+                    cwd=str(directory),
+                )
+                if result.returncode != 0:
+                    self.notify(
+                        f"Shell exited with code {result.returncode}",
+                        severity="warning",
+                    )
+        except Exception as e:
+            self.notify(f"Error opening shell: {e}", severity="error")
 
     def _open_in_editor(self, file_path: Path) -> None:
         """Open a file in the user's editor."""
