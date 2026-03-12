@@ -490,6 +490,9 @@ class Vii(App):
             self.git_status = {}
             self.git_file_status = {}
 
+        # Update the header to reflect new git info
+        self._update_header()
+
     def _update_header(self) -> None:
         """Update the header with current git information."""
         if self.git_branch:
