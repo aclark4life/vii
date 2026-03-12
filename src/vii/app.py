@@ -740,6 +740,13 @@ class Vii(App):
 
             collect_expanded(old_tree.root)
 
+            # Also ensure all parent directories of cursor are in expanded_paths
+            if cursor_path:
+                current = cursor_path.parent
+                while current != self.start_path and current != current.parent:
+                    expanded_paths.add(current)
+                    current = current.parent
+
             # Remove the old tree
             old_tree.remove()
 
@@ -753,53 +760,90 @@ class Vii(App):
             def restore_tree_state():
                 """Restore the expanded nodes and cursor position."""
 
-                # Sort expanded paths by depth (shallowest first) to expand in correct order
-                sorted_paths = sorted(expanded_paths, key=lambda p: len(p.parts))
+                # Build path from root to cursor
+                path_to_cursor = []
+                if cursor_path:
+                    current = cursor_path
+                    while current != self.start_path and current != current.parent:
+                        path_to_cursor.insert(0, current)
+                        current = current.parent
 
-                # Expand nodes in order from root to leaves
-                def find_and_expand_path(target_path):
-                    """Find and expand a node with the given path."""
+                # Index to track which path we're expanding
+                expand_index = [0]
 
+                def expand_next_level():
+                    """Expand the next level in the path to cursor."""
+                    if expand_index[0] >= len(path_to_cursor):
+                        # Done expanding path to cursor, now restore other expanded nodes
+                        restore_other_expanded()
+                        return
+
+                    target_path = path_to_cursor[expand_index[0]]
+
+                    # Find and expand this node
                     def find_and_expand(node):
-                        """Find and expand a specific node."""
                         if node.data and hasattr(node.data, "path"):
                             if node.data.path == target_path:
-                                if not node.is_expanded:
+                                if not node.is_expanded and node.allow_expand:
                                     node.expand()
                                 return True
-                        # Only search children if this node is expanded
-                        if node.is_expanded:
-                            for child in node.children:
-                                if find_and_expand(child):
-                                    return True
-                        return False
-
-                    return find_and_expand(new_tree.root)
-
-                for path_to_expand in sorted_paths:
-                    find_and_expand_path(path_to_expand)
-
-                # Then, try to restore cursor position
-                if cursor_path:
-
-                    def find_and_select_node(node):
-                        """Recursively find and select the node with cursor_path."""
-                        if node.data and hasattr(node.data, "path"):
-                            if node.data.path == cursor_path:
-                                new_tree.select_node(node)
-                                new_tree.scroll_to_node(node)
+                        for child in node.children:
+                            if find_and_expand(child):
                                 return True
-                        # Only search children if this node is expanded
-                        if node.is_expanded:
-                            for child in node.children:
-                                if find_and_select_node(child):
-                                    return True
                         return False
 
-                    find_and_select_node(new_tree.root)
+                    if find_and_expand(new_tree.root):
+                        expand_index[0] += 1
+                        # Schedule next expansion with a small delay to allow children to load
+                        self.set_timer(0.05, expand_next_level)
+                    else:
+                        # Node not found, skip to next
+                        expand_index[0] += 1
+                        self.set_timer(0.05, expand_next_level)
 
-                new_tree.focus()
-                self._update_content_display()
+                def restore_other_expanded():
+                    """Restore other expanded nodes and move cursor."""
+                    # Expand other previously expanded nodes
+                    sorted_paths = sorted(expanded_paths, key=lambda p: len(p.parts))
+
+                    def find_node_by_path(target_path):
+                        """Find a node by its path."""
+
+                        def search(node):
+                            if node.data and hasattr(node.data, "path"):
+                                if node.data.path == target_path:
+                                    return node
+                            for child in node.children:
+                                result = search(child)
+                                if result:
+                                    return result
+                            return None
+
+                        return search(new_tree.root)
+
+                    for path_to_expand in sorted_paths:
+                        # Skip paths already in the cursor path
+                        if path_to_expand in path_to_cursor:
+                            continue
+                        node = find_node_by_path(path_to_expand)
+                        if node and not node.is_expanded and node.allow_expand:
+                            node.expand()
+
+                    # Finally, move cursor to the saved position
+                    if cursor_path:
+                        cursor_node = find_node_by_path(cursor_path)
+                        if cursor_node:
+                            new_tree.move_cursor(cursor_node)
+                            new_tree.scroll_to_node(cursor_node)
+
+                    new_tree.focus()
+                    self._update_content_display()
+
+                # Start the expansion process
+                if path_to_cursor:
+                    expand_next_level()
+                else:
+                    restore_other_expanded()
 
             # Call after refresh to ensure tree is fully loaded
             self.call_after_refresh(restore_tree_state)
