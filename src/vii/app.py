@@ -367,6 +367,8 @@ class Vii(App):
         # Cache for rendered file content (LRU-style, max 30 files)
         self._rendered_cache: dict[Path, tuple[str, object]] = {}
         self._cache_max_size = 30
+        # Track currently displayed path to avoid redundant updates
+        self._displayed_path: Path | None = None
         self.git_log_viewing: bool = False
         self._update_git_info()
 
@@ -900,49 +902,46 @@ class Vii(App):
         self._syntax_highlight_timer = self.set_timer(0.2, self._start_syntax_highlighting)
 
     def _show_cached_content_only(self) -> None:
-        """Show only cached content instantly - no file I/O."""
+        """Show only cached content instantly - no file I/O.
+
+        During rapid navigation, we only show a simple "Loading..." indicator.
+        Cached content is deferred to the plain text phase to avoid expensive
+        widget updates blocking cursor movement.
+        """
         try:
             tree = self.query_one(DirectoryTree)
             if not tree.cursor_node or not tree.cursor_node.data:
                 return
 
             path = tree.cursor_node.data.path
+
+            # Skip if we're already showing this path
+            if path == self._displayed_path:
+                return
+
             content_display = self.query_one("#content-display", Static)
 
             if path.is_dir():
-                # Directories are instant
+                # Directories are instant and small
                 content_display.update(f"[bold]📁 {path.name}[/bold]\n\n[dim]Directory[/dim]")
                 self.original_content = ""
-                self.search_matches = []
-                self.current_match_index = -1
-                self.git_log_viewing = False
-                self.git_log_page = 0
-            elif path in self._rendered_cache:
-                # Cache hit - use pre-rendered content instantly
-                content, rendered = self._rendered_cache[path]
-                self.original_content = content
-                self.search_matches = []
-                self.current_match_index = -1
-                self.git_log_viewing = False
-                self.git_log_page = 0
-                if rendered:
-                    content_display.update(rendered)
-                else:
-                    content_display.update(f"[bold]📄 {path.name}[/bold]\n\n{content}")
-                scroll_container = self.query_one("#content-scroll", ScrollableContainer)
-                scroll_container.scroll_home(animate=False)
+                self._displayed_path = path
             else:
-                # Not cached - just show loading indicator (no I/O)
+                # For files, just show minimal loading indicator
+                # Cached content will be shown in _show_plain_text_preview (after 50ms)
+                # This keeps cursor movement instant
                 content_display.update(f"[bold]📄 {path.name}[/bold]\n\n[dim]Loading...[/dim]")
-                self.search_matches = []
-                self.current_match_index = -1
-                self.git_log_viewing = False
-                self.git_log_page = 0
+                self._displayed_path = None  # Mark as not fully loaded
+
+            self.search_matches = []
+            self.current_match_index = -1
+            self.git_log_viewing = False
+            self.git_log_page = 0
         except Exception:
             pass
 
     def _show_plain_text_preview(self) -> None:
-        """Show plain text preview - called after 50ms debounce."""
+        """Show plain text or cached content - called after 50ms debounce."""
         self._content_update_timer = None
         try:
             tree = self.query_one(DirectoryTree)
@@ -951,8 +950,27 @@ class Vii(App):
 
             path = tree.cursor_node.data.path
 
-            # Skip if cached or directory (already handled)
-            if path.is_dir() or path in self._rendered_cache:
+            # Skip directories (already handled instantly)
+            if path.is_dir():
+                return
+
+            # Skip if already displaying this path fully
+            if path == self._displayed_path:
+                return
+
+            content_display = self.query_one("#content-display", Static)
+            scroll_container = self.query_one("#content-scroll", ScrollableContainer)
+
+            # Use cached content if available
+            if path in self._rendered_cache:
+                content, rendered = self._rendered_cache[path]
+                self.original_content = content
+                if rendered:
+                    content_display.update(rendered)
+                else:
+                    content_display.update(f"[bold]📄 {path.name}[/bold]\n\n{content}")
+                scroll_container.scroll_home(animate=False)
+                self._displayed_path = path
                 return
 
             # Read and display plain text
@@ -962,16 +980,15 @@ class Vii(App):
                     lines = raw_content.split("\n")
                     if len(lines) > 2000:
                         raw_content = "\n".join(lines[:2000]) + "\n\n[dim]... (truncated)[/dim]"
-                    content_display = self.query_one("#content-display", Static)
                     content_display.update(f"[bold]📄 {path.name}[/bold]\n\n{raw_content}")
-                    scroll_container = self.query_one("#content-scroll", ScrollableContainer)
                     scroll_container.scroll_home(animate=False)
                     self.original_content = raw_content
+                    self._displayed_path = path
                 else:
-                    content_display = self.query_one("#content-display", Static)
                     msg = "[dim]File too large to preview (> 100KB)[/dim]"
                     content_display.update(f"[bold]📄 {path.name}[/bold]\n\n{msg}")
                     self.original_content = ""
+                    self._displayed_path = path
             except Exception:
                 pass
         except Exception:
@@ -1080,6 +1097,7 @@ class Vii(App):
 
                 # Reset scroll position
                 scroll_container.scroll_home(animate=False)
+                self._displayed_path = path
             except Exception:
                 pass
 
