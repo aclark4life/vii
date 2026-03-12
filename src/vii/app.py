@@ -879,8 +879,15 @@ class Vii(App):
                 # Previous page of git log
                 self._git_log(self.git_log_page - 1)
         elif content_focused and event.key == "escape":
-            # Clear search and highlights (only if search is active)
-            if self.search_query or self.search_matches:
+            # Handle ESC key in content panel
+            if self.git_log_viewing:
+                # Close git log display and restore file content
+                event.prevent_default()
+                self.git_log_viewing = False
+                self.git_log_page = 0
+                self._update_content_display()
+            elif self.search_query or self.search_matches:
+                # Clear search and highlights (only if search is active)
                 event.prevent_default()
                 self._hide_content_search(clear_highlights=True)
                 self.search_matches = []
@@ -1354,10 +1361,12 @@ class Vii(App):
                     text.append("n", style="bold cyan")
                     text.append(" = Next page  ", style="dim")
                     text.append("p", style="bold cyan")
-                    text.append(" = Previous page", style="dim")
+                    text.append(" = Previous page  ", style="dim")
                 else:
                     text.append("n", style="bold cyan")
-                    text.append(" = Next page", style="dim")
+                    text.append(" = Next page  ", style="dim")
+                text.append("ESC", style="bold cyan")
+                text.append(" = Close", style="dim")
 
                 content_display = self.query_one("#content-display", Static)
                 content_display.update(text)
