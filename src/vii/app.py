@@ -339,7 +339,7 @@ class Vii(App):
 
     def __init__(self, start_path: Path | None = None):
         super().__init__()
-        self.theme = "atom-one-dark"  # Set default theme
+        self.theme = "textual-dark"  # Set default theme
         self.start_path = start_path or Path.cwd()
         self.editor_command = self._detect_editor()
         self.is_terminal_editor = self._is_terminal_editor()
@@ -563,7 +563,7 @@ class Vii(App):
         # Map Textual themes to Pygments/Rich syntax themes
         theme_map = {
             # Dark themes
-            "textual-dark": "one-dark",
+            "textual-dark": "github-dark",
             "atom-one-dark": "one-dark",
             "nord": "nord",
             "gruvbox": "gruvbox-dark",
