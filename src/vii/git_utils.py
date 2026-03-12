@@ -4,6 +4,29 @@ import subprocess
 from pathlib import Path
 
 
+def get_git_root(path: Path) -> Path | None:
+    """Get the root directory of the git repository.
+
+    Args:
+        path: Path inside a git repository
+
+    Returns:
+        Path to git repository root, or None if not in a git repo
+    """
+    try:
+        result = subprocess.run(
+            ["git", "rev-parse", "--show-toplevel"],
+            cwd=str(path),
+            capture_output=True,
+            check=True,
+            timeout=1,
+            text=True,
+        )
+        return Path(result.stdout.strip())
+    except (subprocess.CalledProcessError, subprocess.TimeoutExpired, FileNotFoundError):
+        return None
+
+
 def is_git_repo(path: Path) -> bool:
     """Check if the given path is inside a git repository.
 
@@ -36,9 +59,14 @@ def get_git_branch(path: Path) -> str | None:
         Branch name if in a git repo, None otherwise
     """
     try:
+        # Get git root to ensure we're running from the repository root
+        git_root = get_git_root(path)
+        if not git_root:
+            return None
+
         result = subprocess.run(
             ["git", "branch", "--show-current"],
-            cwd=str(path),
+            cwd=str(git_root),
             capture_output=True,
             check=True,
             timeout=1,
@@ -60,9 +88,14 @@ def get_git_status_summary(path: Path) -> dict[str, int]:
         Dictionary with counts of modified, added, deleted, untracked files
     """
     try:
+        # Get git root to ensure we're running from the repository root
+        git_root = get_git_root(path)
+        if not git_root:
+            return {}
+
         result = subprocess.run(
             ["git", "status", "--porcelain"],
-            cwd=str(path),
+            cwd=str(git_root),
             capture_output=True,
             check=True,
             timeout=2,
@@ -110,9 +143,14 @@ def get_git_file_status(path: Path) -> dict[str, str]:
         Dictionary mapping file paths to their git status codes
     """
     try:
+        # Get git root to ensure we're running from the repository root
+        git_root = get_git_root(path)
+        if not git_root:
+            return {}
+
         result = subprocess.run(
             ["git", "status", "--porcelain"],
-            cwd=str(path),
+            cwd=str(git_root),
             capture_output=True,
             check=True,
             timeout=2,
@@ -252,10 +290,15 @@ def get_git_branches(path: Path) -> dict[str, list[str]] | None:
         Dictionary with 'local' and 'remote' branch lists, or None if error
     """
     try:
+        # Get git root to ensure we're running from the repository root
+        git_root = get_git_root(path)
+        if not git_root:
+            return None
+
         # Get local branches
         result = subprocess.run(
             ["git", "branch", "--format=%(refname:short)"],
-            cwd=str(path),
+            cwd=str(git_root),
             capture_output=True,
             check=True,
             timeout=3,
@@ -266,7 +309,7 @@ def get_git_branches(path: Path) -> dict[str, list[str]] | None:
         # Get remote branches
         result = subprocess.run(
             ["git", "branch", "-r", "--format=%(refname:short)"],
-            cwd=str(path),
+            cwd=str(git_root),
             capture_output=True,
             check=True,
             timeout=3,
@@ -297,9 +340,14 @@ def git_checkout_branch(path: Path, branch_name: str) -> tuple[bool, str]:
         Tuple of (success: bool, message: str)
     """
     try:
+        # Get git root to ensure we're running from the repository root
+        git_root = get_git_root(path)
+        if not git_root:
+            return (False, "Not in a git repository")
+
         subprocess.run(
             ["git", "checkout", branch_name],
-            cwd=str(path),
+            cwd=str(git_root),
             capture_output=True,
             check=True,
             timeout=5,
@@ -325,6 +373,11 @@ def git_checkout_remote_branch(path: Path, remote_branch: str) -> tuple[bool, st
         Tuple of (success: bool, message: str)
     """
     try:
+        # Get git root to ensure we're running from the repository root
+        git_root = get_git_root(path)
+        if not git_root:
+            return (False, "Not in a git repository")
+
         # Extract local branch name from remote branch
         # e.g., 'origin/feature-branch' -> 'feature-branch'
         if "/" in remote_branch:
@@ -335,7 +388,7 @@ def git_checkout_remote_branch(path: Path, remote_branch: str) -> tuple[bool, st
         # Checkout and create tracking branch
         subprocess.run(
             ["git", "checkout", "-b", local_branch, remote_branch],
-            cwd=str(path),
+            cwd=str(git_root),
             capture_output=True,
             check=True,
             timeout=5,
@@ -365,6 +418,11 @@ def get_git_log(path: Path, max_count: int = 50, skip: int = 0) -> str | None:
         Formatted git log output as string, or None if error
     """
     try:
+        # Get git root to ensure we're running from the repository root
+        git_root = get_git_root(path)
+        if not git_root:
+            return None
+
         # Use a nice format with colors and graph
         format_str = "%C(yellow)%h%Creset %C(cyan)%ad%Creset %C(green)%an%Creset%n  %s%n"
         result = subprocess.run(
@@ -377,7 +435,7 @@ def get_git_log(path: Path, max_count: int = 50, skip: int = 0) -> str | None:
                 f"--pretty=format:{format_str}",
                 "--date=relative",
             ],
-            cwd=str(path),
+            cwd=str(git_root),
             capture_output=True,
             check=True,
             timeout=5,

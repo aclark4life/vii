@@ -22,6 +22,7 @@ from textual.widgets import DirectoryTree, Footer, Header, Input, Static
 from vii.git_utils import (
     get_git_branch,
     get_git_file_status,
+    get_git_root,
     get_git_status_summary,
     is_git_repo,
 )
@@ -349,6 +350,7 @@ class Vii(App):
         self.sidebar_search_matches: list = []  # Tree nodes with matches
         self.sidebar_current_match_index = -1
         # Git state
+        self.git_root: Path | None = None
         self.git_branch: str | None = None
         self.git_status: dict[str, int] = {}
         self.git_file_status: dict[str, str] = {}
@@ -498,6 +500,8 @@ class Vii(App):
             path = self._get_current_directory()
 
         if is_git_repo(path):
+            # Get and store the git root
+            self.git_root = get_git_root(path)
             self.git_branch = get_git_branch(path)
             self.git_status = get_git_status_summary(path)
             self.git_file_status = get_git_file_status(path)
@@ -510,6 +514,7 @@ class Vii(App):
             except Exception:
                 pass  # Tree may not be mounted yet
         else:
+            self.git_root = None
             self.git_branch = None
             self.git_status = {}
             self.git_file_status = {}
@@ -1303,14 +1308,14 @@ class Vii(App):
     # Git command implementations
     def _git_status(self) -> None:
         """Show git status."""
-        if not self.git_branch:
+        if not self.git_branch or not self.git_root:
             self.notify("Not in a git repository", severity="warning")
             return
 
         try:
             result = subprocess.run(
                 ["git", "status", "--short"],
-                cwd=str(self.start_path),
+                cwd=str(self.git_root),
                 capture_output=True,
                 text=True,
                 timeout=5,
@@ -1383,7 +1388,7 @@ class Vii(App):
 
     def _git_add_current(self) -> None:
         """Add the current file to git."""
-        if not self.git_branch:
+        if not self.git_branch or not self.git_root:
             self.notify("Not in a git repository", severity="warning")
             return
 
@@ -1398,10 +1403,10 @@ class Vii(App):
             return
 
         try:
-            rel_path = path.relative_to(self.start_path)
+            rel_path = path.relative_to(self.git_root)
             subprocess.run(
                 ["git", "add", str(rel_path)],
-                cwd=str(self.start_path),
+                cwd=str(self.git_root),
                 check=True,
                 timeout=5,
             )
@@ -1412,14 +1417,14 @@ class Vii(App):
 
     def _git_add_all(self) -> None:
         """Add all changes to git."""
-        if not self.git_branch:
+        if not self.git_branch or not self.git_root:
             self.notify("Not in a git repository", severity="warning")
             return
 
         try:
             subprocess.run(
                 ["git", "add", "."],
-                cwd=str(self.start_path),
+                cwd=str(self.git_root),
                 check=True,
                 timeout=5,
             )
@@ -1430,7 +1435,7 @@ class Vii(App):
 
     def _git_commit(self) -> None:
         """Commit changes (opens editor for commit message)."""
-        if not self.git_branch:
+        if not self.git_branch or not self.git_root:
             self.notify("Not in a git repository", severity="warning")
             return
 
@@ -1438,7 +1443,7 @@ class Vii(App):
         try:
             subprocess.run(
                 ["git", "commit"],
-                cwd=str(self.start_path),
+                cwd=str(self.git_root),
                 timeout=300,  # 5 minutes for commit message
             )
             self._git_refresh()
@@ -1447,7 +1452,7 @@ class Vii(App):
 
     def _git_push(self) -> None:
         """Push changes to remote."""
-        if not self.git_branch:
+        if not self.git_branch or not self.git_root:
             self.notify("Not in a git repository", severity="warning")
             return
 
@@ -1455,7 +1460,7 @@ class Vii(App):
         try:
             result = subprocess.run(
                 ["git", "push"],
-                cwd=str(self.start_path),
+                cwd=str(self.git_root),
                 capture_output=True,
                 text=True,
                 timeout=60,
@@ -1469,7 +1474,7 @@ class Vii(App):
 
     def _git_pull(self) -> None:
         """Pull changes from remote."""
-        if not self.git_branch:
+        if not self.git_branch or not self.git_root:
             self.notify("Not in a git repository", severity="warning")
             return
 
@@ -1477,7 +1482,7 @@ class Vii(App):
         try:
             result = subprocess.run(
                 ["git", "pull"],
-                cwd=str(self.start_path),
+                cwd=str(self.git_root),
                 capture_output=True,
                 text=True,
                 timeout=60,
@@ -1492,7 +1497,7 @@ class Vii(App):
 
     def _git_diff_current(self) -> None:
         """Show git diff for the current file."""
-        if not self.git_branch:
+        if not self.git_branch or not self.git_root:
             self.notify("Not in a git repository", severity="warning")
             return
 
@@ -1507,10 +1512,10 @@ class Vii(App):
             return
 
         try:
-            rel_path = path.relative_to(self.start_path)
+            rel_path = path.relative_to(self.git_root)
             result = subprocess.run(
                 ["git", "diff", "HEAD", str(rel_path)],
-                cwd=str(self.start_path),
+                cwd=str(self.git_root),
                 capture_output=True,
                 text=True,
                 timeout=5,
@@ -1527,7 +1532,7 @@ class Vii(App):
 
     def _git_blame_current(self) -> None:
         """Show git blame for the current file."""
-        if not self.git_branch:
+        if not self.git_branch or not self.git_root:
             self.notify("Not in a git repository", severity="warning")
             return
 
@@ -1544,8 +1549,8 @@ class Vii(App):
         try:
             from .git_utils import get_git_blame_file
 
-            rel_path = path.relative_to(self.start_path)
-            blame_output = get_git_blame_file(self.start_path, str(rel_path))
+            rel_path = path.relative_to(self.git_root)
+            blame_output = get_git_blame_file(self.git_root, str(rel_path))
 
             if blame_output:
                 # Display blame in content panel with syntax highlighting
@@ -1568,7 +1573,7 @@ class Vii(App):
 
     def _git_switch_branch(self) -> None:
         """Show branch selection and switch to selected branch."""
-        if not self.git_branch:
+        if not self.git_branch or not self.git_root:
             self.notify("Not in a git repository", severity="warning")
             return
 
@@ -1577,7 +1582,7 @@ class Vii(App):
 
             from .git_utils import get_git_branches
 
-            branches = get_git_branches(self.start_path)
+            branches = get_git_branches(self.git_root)
             if not branches:
                 self.notify("Failed to get branch list", severity="error")
                 return
@@ -1666,13 +1671,17 @@ class Vii(App):
             branch: Branch name to checkout
             is_remote: Whether this is a remote branch
         """
+        if not self.git_root:
+            self.notify("Not in a git repository", severity="error")
+            return
+
         try:
             from .git_utils import git_checkout_branch, git_checkout_remote_branch
 
             if is_remote:
-                success, message = git_checkout_remote_branch(self.start_path, branch)
+                success, message = git_checkout_remote_branch(self.git_root, branch)
             else:
-                success, message = git_checkout_branch(self.start_path, branch)
+                success, message = git_checkout_branch(self.git_root, branch)
 
             if success:
                 self.notify(message, severity="information")
