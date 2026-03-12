@@ -6,10 +6,10 @@ from pathlib import Path
 
 def is_git_repo(path: Path) -> bool:
     """Check if the given path is inside a git repository.
-    
+
     Args:
         path: Path to check
-        
+
     Returns:
         True if path is in a git repository, False otherwise
     """
@@ -28,10 +28,10 @@ def is_git_repo(path: Path) -> bool:
 
 def get_git_branch(path: Path) -> str | None:
     """Get the current git branch for the given path.
-    
+
     Args:
         path: Path inside a git repository
-        
+
     Returns:
         Branch name if in a git repo, None otherwise
     """
@@ -206,6 +206,7 @@ def get_git_blame_line(path: Path, file_path: str, line_number: int) -> dict[str
             elif line.startswith("author-time "):
                 # Convert timestamp to readable date
                 import datetime
+
                 timestamp = int(line[12:])
                 date = datetime.datetime.fromtimestamp(timestamp)
                 blame_info["date"] = date.strftime("%Y-%m-%d")
@@ -296,7 +297,7 @@ def git_checkout_branch(path: Path, branch_name: str) -> tuple[bool, str]:
         Tuple of (success: bool, message: str)
     """
     try:
-        result = subprocess.run(
+        subprocess.run(
             ["git", "checkout", branch_name],
             cwd=str(path),
             capture_output=True,
@@ -332,7 +333,7 @@ def git_checkout_remote_branch(path: Path, remote_branch: str) -> tuple[bool, st
             return (False, "Invalid remote branch format")
 
         # Checkout and create tracking branch
-        result = subprocess.run(
+        subprocess.run(
             ["git", "checkout", "-b", local_branch, remote_branch],
             cwd=str(path),
             capture_output=True,
@@ -365,6 +366,10 @@ def get_git_log(path: Path, max_count: int = 50, skip: int = 0) -> str | None:
     """
     try:
         # Use a nice format with colors and graph
+        format_str = (
+            "%C(yellow)%h%Creset %C(cyan)%ad%Creset "
+            "%C(green)%an%Creset%n  %s%n"
+        )
         result = subprocess.run(
             [
                 "git",
@@ -372,7 +377,7 @@ def get_git_log(path: Path, max_count: int = 50, skip: int = 0) -> str | None:
                 f"--max-count={max_count}",
                 f"--skip={skip}",
                 "--graph",
-                "--pretty=format:%C(yellow)%h%Creset %C(cyan)%ad%Creset %C(green)%an%Creset%n  %s%n",
+                f"--pretty=format:{format_str}",
                 "--date=relative",
             ],
             cwd=str(path),
@@ -384,4 +389,3 @@ def get_git_log(path: Path, max_count: int = 50, skip: int = 0) -> str | None:
         return result.stdout if result.stdout else None
     except (subprocess.CalledProcessError, subprocess.TimeoutExpired, FileNotFoundError):
         return None
-
