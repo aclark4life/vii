@@ -39,9 +39,14 @@ class TestVii:
         assert app.editor_command == ["nano"]
 
     @patch.dict(os.environ, {}, clear=True)
+    @patch("vii.app.get_git_root")
+    @patch("vii.app.is_git_repo")
     @patch("subprocess.run")
-    def test_detect_editor_which_code(self, mock_run):
+    def test_detect_editor_which_code(self, mock_run, mock_is_git_repo, mock_get_git_root):
         """Test editor detection using 'which' command for VS Code."""
+        # Mock git functions to avoid git-related calls
+        mock_is_git_repo.return_value = False
+        mock_get_git_root.return_value = None
         # First call to 'which code' succeeds
         mock_run.return_value = Mock(returncode=0)
         app = Vii()
@@ -107,12 +112,19 @@ class TestVii:
             # Verify notification was sent
             mock_notify.assert_called_once_with(f"Opened: {test_file.name}", severity="information")
 
+    @patch("vii.app.get_git_root")
+    @patch("vii.app.is_git_repo")
     @patch("subprocess.run")
-    def test_open_in_terminal_editor_success(self, mock_run, tmp_path):
+    def test_open_in_terminal_editor_success(
+        self, mock_run, mock_is_git_repo, mock_get_git_root, tmp_path
+    ):
         """Test successfully opening a file in terminal editor."""
         test_file = tmp_path / "test.txt"
         test_file.write_text("test content")
 
+        # Mock git functions to avoid git-related calls
+        mock_is_git_repo.return_value = False
+        mock_get_git_root.return_value = None
         # Mock successful editor run
         mock_run.return_value = Mock(returncode=0)
 
