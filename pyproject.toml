@@ -15,6 +15,8 @@ authors = [
 dependencies = [
     "textual>=0.50.0",
     "rich>=13.0.0",
+    "tree-sitter-languages<1.10",
+    "tree-sitter<0.22",
 ]
 
 [project.optional-dependencies]
