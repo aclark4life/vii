@@ -1202,11 +1202,15 @@ class Vii(App):
                 # Update the content display after cursor movement (debounced)
                 # Note: git info is NOT updated on navigation - it's expensive (subprocess calls)
                 # and doesn't change just from moving the cursor
-                self._schedule_content_update()
+                # DEBUG: Comment out to test if DirectoryTree itself is slow
+                # self._schedule_content_update()
+                pass
         elif event.key in arrow_keys and not content_focused:
             # Arrow keys are handled by the tree widget, but we still need to update display
             # Use call_after_refresh to ensure the tree has processed the key first
-            self.call_after_refresh(self._schedule_content_update)
+            # DEBUG: Comment out to test
+            # self.call_after_refresh(self._schedule_content_update)
+            pass
         elif event.key in ("ctrl+f", "ctrl+d", "d"):
             # Page down (vim-style)
             event.prevent_default()
