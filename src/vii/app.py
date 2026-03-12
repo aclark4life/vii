@@ -719,6 +719,25 @@ class Vii(App):
         except Exception as e:
             self.notify(f"Cannot navigate to directory: {e}", severity="error")
 
+    def _reload_tree(self) -> None:
+        """Reload the directory tree to reflect file system changes."""
+        try:
+            # Remove the old tree
+            old_tree = self.query_one(DirectoryTree)
+            old_tree.remove()
+
+            # Create and mount a new tree with the same directory
+            sidebar = self.query_one("#sidebar", Vertical)
+            new_tree = GitDirectoryTree(str(self.start_path))
+            new_tree.git_file_status = self.git_file_status
+            sidebar.mount(new_tree, before=0)  # Mount at the beginning
+            new_tree.focus()
+
+            # Update content display
+            self.call_after_refresh(self._update_content_display)
+        except Exception as e:
+            self.notify(f"Cannot reload tree: {e}", severity="error")
+
     def _update_content_display(self) -> None:
         """Update the content display based on the currently highlighted tree node."""
         try:
@@ -1489,6 +1508,8 @@ class Vii(App):
             )
             if result.returncode == 0:
                 self.notify("Pulled successfully")
+                # Reload the directory tree to reflect pulled changes
+                self._reload_tree()
                 self._git_refresh()
             else:
                 self.notify(f"Pull failed: {result.stderr}", severity="error")
@@ -1685,6 +1706,8 @@ class Vii(App):
 
             if success:
                 self.notify(message, severity="information")
+                # Reload the directory tree to reflect branch changes
+                self._reload_tree()
                 # Refresh git info to update header
                 self._update_git_info()
             else:
