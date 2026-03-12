@@ -182,7 +182,7 @@ def highlight_with_tree_sitter(
     Returns a Rich Text object with syntax highlighting, or None if parsing fails.
     """
     try:
-        from tree_sitter_languages import get_parser
+        from tree_sitter_language_pack import get_parser
     except ImportError:
         return None
 
