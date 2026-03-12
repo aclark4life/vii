@@ -356,6 +356,10 @@ class Vii(App):
         self.git_branch: str | None = None
         self.git_status: dict[str, int] = {}
         self.git_file_status: dict[str, str] = {}
+        # Git log pagination
+        self.git_log_page: int = 0
+        self.git_log_page_size: int = 50
+        self.git_log_viewing: bool = False
         self._update_git_info()
 
     def set_sidebar_width(self, width: int) -> None:
@@ -754,6 +758,9 @@ class Vii(App):
                 # Clear search matches when file changes
                 self.search_matches = []
                 self.current_match_index = -1
+                # Reset git log viewing state
+                self.git_log_viewing = False
+                self.git_log_page = 0
         except Exception:
             pass
 
@@ -853,13 +860,24 @@ class Vii(App):
             event.prevent_default()
             self._show_content_search()
         elif content_focused and event.key == "n":
-            # Next search match
             event.prevent_default()
-            self._goto_next_match()
+            # Check if viewing git log
+            if self.git_log_viewing:
+                # Next page of git log
+                self._git_log(self.git_log_page + 1)
+            else:
+                # Next search match
+                self._goto_next_match()
         elif content_focused and event.key == "N":
             # Previous search match
             event.prevent_default()
             self._goto_previous_match()
+        elif content_focused and event.key == "p":
+            event.prevent_default()
+            # Check if viewing git log
+            if self.git_log_viewing and self.git_log_page > 0:
+                # Previous page of git log
+                self._git_log(self.git_log_page - 1)
         elif content_focused and event.key == "escape":
             # Clear search and highlights (only if search is active)
             if self.search_query or self.search_matches:
@@ -1306,8 +1324,12 @@ class Vii(App):
         self._update_header()
         self.notify("Git status refreshed")
 
-    def _git_log(self) -> None:
-        """Show git commit history."""
+    def _git_log(self, page: int = 0) -> None:
+        """Show git commit history.
+
+        Args:
+            page: Page number to display (0-based)
+        """
         if not self.git_branch:
             self.notify("Not in a git repository", severity="warning")
             return
@@ -1316,21 +1338,40 @@ class Vii(App):
             from .git_utils import get_git_log
 
             current_dir = self._get_current_directory()
-            log_output = get_git_log(current_dir)
+            skip = page * self.git_log_page_size
+            log_output = get_git_log(current_dir, max_count=self.git_log_page_size, skip=skip)
 
             if log_output:
                 # Display log in content panel
                 from rich.text import Text
 
                 text = Text()
-                text.append("📜 Git Log\n\n", style="bold")
+                text.append(f"📜 Git Log (Page {page + 1})\n\n", style="bold")
                 text.append(log_output)
+                text.append("\n\n")
+                text.append("Navigation: ", style="dim")
+                if page > 0:
+                    text.append("n", style="bold cyan")
+                    text.append(" = Next page  ", style="dim")
+                    text.append("p", style="bold cyan")
+                    text.append(" = Previous page", style="dim")
+                else:
+                    text.append("n", style="bold cyan")
+                    text.append(" = Next page", style="dim")
 
                 content_display = self.query_one("#content-display", Static)
                 content_display.update(text)
-                self.notify("Showing git log")
+
+                # Update state
+                self.git_log_page = page
+                self.git_log_viewing = True
+
+                self.notify(f"Showing git log (page {page + 1})")
             else:
-                self.notify("No git log available", severity="information")
+                if page > 0:
+                    self.notify("No more commits", severity="information")
+                else:
+                    self.notify("No git log available", severity="information")
         except Exception as e:
             self.notify(f"Git log failed: {e}", severity="error")
 

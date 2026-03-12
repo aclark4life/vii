@@ -352,12 +352,13 @@ def git_checkout_remote_branch(path: Path, remote_branch: str) -> tuple[bool, st
         return (False, "Git command not found")
 
 
-def get_git_log(path: Path, max_count: int = 50) -> str | None:
+def get_git_log(path: Path, max_count: int = 50, skip: int = 0) -> str | None:
     """Get git log with formatted output.
 
     Args:
         path: Path inside a git repository
         max_count: Maximum number of commits to show (default: 50)
+        skip: Number of commits to skip (for pagination)
 
     Returns:
         Formatted git log output as string, or None if error
@@ -369,6 +370,7 @@ def get_git_log(path: Path, max_count: int = 50) -> str | None:
                 "git",
                 "log",
                 f"--max-count={max_count}",
+                f"--skip={skip}",
                 "--graph",
                 "--pretty=format:%C(yellow)%h%Creset %C(cyan)%ad%Creset %C(green)%an%Creset%n  %s%n",
                 "--date=relative",
