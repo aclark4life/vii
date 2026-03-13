@@ -4,6 +4,59 @@ from __future__ import annotations
 
 from pathlib import Path
 
+# Common image file extensions
+IMAGE_EXTENSIONS = {
+    ".png",
+    ".jpg",
+    ".jpeg",
+    ".gif",
+    ".bmp",
+    ".webp",
+    ".ico",
+    ".tiff",
+    ".tif",
+}
+
+
+def is_image_file(path: Path) -> bool:
+    """Check if a file is a supported image type.
+
+    Args:
+        path: Path to the file
+
+    Returns:
+        True if the file is a supported image type.
+    """
+    return path.suffix.lower() in IMAGE_EXTENSIONS
+
+
+def render_image_preview(path: Path, size: int = 30) -> tuple[str, None] | tuple[None, str]:
+    """Render an image file for terminal preview using term-image.
+
+    Args:
+        path: Path to the image file
+        size: Fixed size in terminal columns (width)
+
+    Returns:
+        A tuple of (rendered string, None) on success, or (None, error_message) on failure.
+    """
+    try:
+        from term_image.image import from_file
+    except ImportError:
+        return None, "Missing dependency: term-image"
+
+    try:
+        img = from_file(path)
+        img.set_size(width=size)
+        # Convert to ANSI string for Rich/Textual compatibility
+        return str(img), None
+    except FileNotFoundError:
+        return None, f"File not found: {path}"
+    except PermissionError:
+        return None, f"Permission denied: {path}"
+    except Exception as e:
+        return None, f"Error: {e}"
+
 
 def read_file_content(path: Path, max_size: int = 100000, max_lines: int = 2000) -> str:
     """Read file content, handling binary files and size limits.

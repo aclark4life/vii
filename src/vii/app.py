@@ -21,7 +21,13 @@ from textual.worker import Worker, WorkerState
 
 from vii.commands import ConfigCommandProvider, GitCommandProvider
 from vii.config import Config
-from vii.content import get_syntax_lexer, get_syntax_theme, read_file_content
+from vii.content import (
+    get_syntax_lexer,
+    get_syntax_theme,
+    is_image_file,
+    read_file_content,
+    render_image_preview,
+)
 from vii.git_utils import (
     get_git_branch,
     get_git_file_status,
@@ -728,6 +734,39 @@ class Vii(App):
 
         This does all the expensive work (file I/O, syntax highlighting) off the main thread.
         """
+        # Check if this is an image file
+        if is_image_file(path):
+            image_str, error = render_image_preview(path)
+            if image_str is not None:
+                # Get image info for header
+                try:
+                    from PIL import Image
+
+                    with Image.open(path) as img:
+                        width, height = img.size
+                        img_format = img.format or path.suffix.upper().lstrip(".")
+                        header = Text(
+                            f"🖼️ {path.name} ({width}x{height} {img_format})\n\n", style="bold"
+                        )
+                except Exception:
+                    header = Text(f"🖼️ {path.name}\n\n", style="bold")
+
+                # Convert ANSI string to Rich Text
+                image_text = Text.from_ansi(image_str)
+                rendered_content = Group(header, image_text)
+                return {
+                    "path": path,
+                    "content": f"[Image: {path.name}]",
+                    "rendered_content": rendered_content,
+                }
+            else:
+                # Image rendering failed, show error message
+                return {
+                    "path": path,
+                    "content": f"[dim]Cannot preview image: {error}[/dim]",
+                    "rendered_content": None,
+                }
+
         # Read file content (I/O operation)
         content = read_file_content(path)
 
@@ -838,6 +877,28 @@ class Vii(App):
                 if path.is_dir():
                     content_display.update(self._render_directory_listing(path))
                     self.original_content = ""
+                elif is_image_file(path):
+                    # Handle image files
+                    image_str, error = render_image_preview(path)
+                    if image_str is not None:
+                        try:
+                            from PIL import Image
+
+                            with Image.open(path) as img:
+                                width, height = img.size
+                                img_format = img.format or path.suffix.upper().lstrip(".")
+                                header = Text(
+                                    f"🖼️ {path.name} ({width}x{height} {img_format})\n\n",
+                                    style="bold",
+                                )
+                        except Exception:
+                            header = Text(f"🖼️ {path.name}\n\n", style="bold")
+                        image_text = Text.from_ansi(image_str)
+                        content_display.update(Group(header, image_text))
+                        self.original_content = f"[Image: {path.name}]"
+                    else:
+                        content_display.update(f"[dim]Cannot preview image: {error}[/dim]")
+                        self.original_content = ""
                 else:
                     content = read_file_content(path)
                     self.original_content = content
