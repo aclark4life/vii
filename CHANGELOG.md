@@ -7,6 +7,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+- Toggle git blame on/off with `b` key (was show-only before)
+- Toggle git log on/off with `l` key (was show-only before)
+- Horizontal scrolling in content panel with `h`/`H` (left) and `L` (right) keys
+- Interactive blame view with line highlighting:
+  - Click to highlight/select any line
+  - `j`/`k` keys to move cursor up/down through blame
+  - `g`/`G` to jump to top/bottom
+  - Full-width highlight bar
+  - Auto-scroll to keep highlighted line visible
+
+### Fixed
+- Fixed pyproject.toml: dependencies were incorrectly placed in [project.urls] section
+
 ## [0.1.0a4] - 2026-03-12
 
 ### Added
