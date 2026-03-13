@@ -188,6 +188,8 @@ class Vii(App):
         self._displayed_path: Path | None = None
         self.git_log_viewing: bool = False
         self.git_blame_viewing: bool = False
+        self.git_blame_output: str = ""  # Store blame output for re-rendering
+        self.git_blame_highlighted_line: int = -1  # Currently highlighted line (-1 = none)
         self._update_git_info()
 
     def set_sidebar_width(self, width: int, save: bool = True) -> None:
@@ -1421,16 +1423,32 @@ class Vii(App):
         pass
 
     def on_click(self, event: events.Click) -> None:
-        """Handle mouse clicks to stop scroll animations."""
+        """Handle mouse clicks to stop scroll animations and highlight blame lines."""
         # Check if the click is in the content scroll container
         scroll_container = self.query_one("#content-scroll", ScrollableContainer)
         widget_at_click, _ = self.get_widget_at(event.screen_x, event.screen_y)
 
-        # If click is within the scroll container or its children, stop animations
+        # If click is within the scroll container or its children
         if widget_at_click is scroll_container or scroll_container in widget_at_click.ancestors:
             # Stop any ongoing scroll animations
             self.call_later(scroll_container.stop_animation, "scroll_x")
             self.call_later(scroll_container.stop_animation, "scroll_y")
+
+            # Handle blame view line highlighting
+            if self.git_blame_viewing and self.git_blame_output:
+                # Calculate clicked line based on y position relative to content
+                scroll_y = scroll_container.scroll_y
+
+                # Calculate line number (accounting for scroll and padding)
+                # event.y is relative to the widget, add scroll offset
+                clicked_y = event.y + int(scroll_y) - 1  # -1 for padding
+                line_number = clicked_y
+
+                # Validate line number
+                lines = self.git_blame_output.split("\n")
+                if 0 <= line_number < len(lines):
+                    self.git_blame_highlighted_line = line_number
+                    self._render_blame_with_highlight()
 
     def action_edit_file(self) -> None:
         """Open the currently selected file in the editor (or image viewer for images)."""
@@ -1462,6 +1480,8 @@ class Vii(App):
         if self.git_blame_viewing:
             # Turn off blame and restore file content
             self.git_blame_viewing = False
+            self.git_blame_output = ""
+            self.git_blame_highlighted_line = -1
             self._update_content_display()
             # Get the current file name for the notification
             tree = self.query_one(DirectoryTree)
@@ -1907,18 +1927,12 @@ class Vii(App):
             blame_output = get_git_blame_file(self.git_root, str(rel_path))
 
             if blame_output:
-                # Display blame in content panel with syntax highlighting
-                from rich.syntax import Syntax
+                # Store blame output for re-rendering with highlights
+                self.git_blame_output = blame_output
+                self.git_blame_highlighted_line = -1
 
-                syntax = Syntax(
-                    blame_output,
-                    "diff",  # Use diff lexer for git blame output
-                    theme=get_syntax_theme(self.theme),
-                    line_numbers=False,
-                    word_wrap=False,
-                )
-                content_display = self.query_one("#content-display", Static)
-                content_display.update(syntax)
+                # Display blame in content panel
+                self._render_blame_with_highlight()
 
                 # Update state so ESC can restore file content
                 self.git_blame_viewing = True
@@ -1932,6 +1946,24 @@ class Vii(App):
                 self.notify("No blame information available", severity="information")
         except Exception as e:
             self.notify(f"Git blame failed: {e}", severity="error")
+
+    def _render_blame_with_highlight(self) -> None:
+        """Render git blame output with optional line highlighting."""
+        if not self.git_blame_output:
+            return
+
+        lines = self.git_blame_output.split("\n")
+        text = Text()
+
+        for i, line in enumerate(lines):
+            if i == self.git_blame_highlighted_line:
+                # Highlighted line
+                text.append(line + "\n", style="reverse")
+            else:
+                text.append(line + "\n")
+
+        content_display = self.query_one("#content-display", Static)
+        content_display.update(text)
 
     def _git_switch_branch(self) -> None:
         """Show branch selection and switch to selected branch."""
