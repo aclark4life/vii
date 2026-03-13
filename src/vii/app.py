@@ -961,13 +961,42 @@ class Vii(App):
             if content_focused:
                 # Control the content scroll panel
                 if action_key == "down":
-                    scroll_container.scroll_down()
+                    if self.git_blame_viewing and self.git_blame_output:
+                        # Move highlighted line down in blame view
+                        lines = self.git_blame_output.split("\n")
+                        max_line = len(lines) - 1
+                        if self.git_blame_highlighted_line < max_line:
+                            self.git_blame_highlighted_line += 1
+                            self._render_blame_with_highlight()
+                            # Auto-scroll to keep highlighted line visible
+                            self._scroll_to_blame_line()
+                    else:
+                        scroll_container.scroll_down()
                 elif action_key == "up":
-                    scroll_container.scroll_up()
+                    if self.git_blame_viewing and self.git_blame_output:
+                        # Move highlighted line up in blame view
+                        if self.git_blame_highlighted_line > 0:
+                            self.git_blame_highlighted_line -= 1
+                            self._render_blame_with_highlight()
+                            # Auto-scroll to keep highlighted line visible
+                            self._scroll_to_blame_line()
+                    else:
+                        scroll_container.scroll_up()
                 elif action_key == "home":
-                    scroll_container.scroll_home()
+                    if self.git_blame_viewing and self.git_blame_output:
+                        self.git_blame_highlighted_line = 0
+                        self._render_blame_with_highlight()
+                        scroll_container.scroll_home()
+                    else:
+                        scroll_container.scroll_home()
                 elif action_key == "end":
-                    scroll_container.scroll_end()
+                    if self.git_blame_viewing and self.git_blame_output:
+                        lines = self.git_blame_output.split("\n")
+                        self.git_blame_highlighted_line = len(lines) - 1
+                        self._render_blame_with_highlight()
+                        scroll_container.scroll_end()
+                    else:
+                        scroll_container.scroll_end()
                 elif action_key == "right":
                     # l toggles git log in content panel
                     self.action_git_log()
@@ -1929,7 +1958,7 @@ class Vii(App):
             if blame_output:
                 # Store blame output for re-rendering with highlights
                 self.git_blame_output = blame_output
-                self.git_blame_highlighted_line = -1
+                self.git_blame_highlighted_line = 0  # Start at first line
 
                 # Display blame in content panel
                 self._render_blame_with_highlight()
@@ -1955,15 +1984,43 @@ class Vii(App):
         lines = self.git_blame_output.split("\n")
         text = Text()
 
+        # Get terminal width to pad lines
+        scroll_container = self.query_one("#content-scroll", ScrollableContainer)
+        width = max(scroll_container.size.width - 4, 80)  # -4 for padding, min 80
+
         for i, line in enumerate(lines):
             if i == self.git_blame_highlighted_line:
-                # Highlighted line
-                text.append(line + "\n", style="reverse")
+                # Highlighted line - pad to full width
+                padded_line = line.ljust(width)
+                text.append(padded_line + "\n", style="reverse")
             else:
                 text.append(line + "\n")
 
         content_display = self.query_one("#content-display", Static)
         content_display.update(text)
+
+    def _scroll_to_blame_line(self) -> None:
+        """Scroll to keep the highlighted blame line visible."""
+        if self.git_blame_highlighted_line < 0:
+            return
+
+        scroll_container = self.query_one("#content-scroll", ScrollableContainer)
+        # Each line is roughly 1 unit of scroll height
+        # Add 1 for padding at top
+        target_y = self.git_blame_highlighted_line + 1
+
+        # Get visible region
+        visible_top = scroll_container.scroll_y
+        visible_height = scroll_container.size.height - 2  # Account for borders
+        visible_bottom = visible_top + visible_height
+
+        # Scroll if line is outside visible region
+        if target_y < visible_top + 2:
+            # Line is above visible area, scroll up
+            scroll_container.scroll_to(y=max(0, target_y - 2), animate=False)
+        elif target_y > visible_bottom - 2:
+            # Line is below visible area, scroll down
+            scroll_container.scroll_to(y=target_y - visible_height + 2, animate=False)
 
     def _git_switch_branch(self) -> None:
         """Show branch selection and switch to selected branch."""
