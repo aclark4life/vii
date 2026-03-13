@@ -1465,18 +1465,21 @@ class Vii(App):
 
             # Handle blame view line highlighting
             if self.git_blame_viewing and self.git_blame_output:
-                # Calculate clicked line based on y position relative to content
-                scroll_y = scroll_container.scroll_y
+                # Calculate clicked line based on screen position
+                # Get the scroll container's position on screen
+                container_region = scroll_container.region
+                scroll_y = int(scroll_container.scroll_y)
 
-                # Calculate line number (accounting for scroll and padding)
-                # event.y is relative to the widget, add scroll offset
-                clicked_y = event.y + int(scroll_y) - 1  # -1 for padding
-                line_number = clicked_y
+                # Calculate y position relative to the container content
+                # event.screen_y is absolute screen position
+                # container_region.y is the container's top position on screen
+                # Add scroll offset and subtract padding (1 line for top padding, 1 for border)
+                relative_y = event.screen_y - container_region.y - 2 + scroll_y
 
                 # Validate line number
                 lines = self.git_blame_output.split("\n")
-                if 0 <= line_number < len(lines):
-                    self.git_blame_highlighted_line = line_number
+                if 0 <= relative_y < len(lines):
+                    self.git_blame_highlighted_line = relative_y
                     self._render_blame_with_highlight()
 
     def action_edit_file(self) -> None:
