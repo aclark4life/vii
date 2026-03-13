@@ -1770,16 +1770,6 @@ class Vii(App):
         except Exception as e:
             self.notify(f"Failed to save config: {e}", severity="error")
 
-    def _show_config_path(self) -> None:
-        """Show the config file path."""
-        from vii.config import get_config_path
-
-        config_path = get_config_path()
-        if config_path.exists():
-            self.notify(f"Config: {config_path}")
-        else:
-            self.notify(f"Config (not yet created): {config_path}")
-
 
 def main():
     """Main entry point."""

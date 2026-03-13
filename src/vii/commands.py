@@ -23,7 +23,6 @@ class ConfigCommandProvider(Provider):
 
         return [
             ("Save Config", app._save_config, "Save current settings to config file"),
-            ("Show Config Path", app._show_config_path, "Show config file location"),
         ]
 
     async def discover(self) -> Hits:
