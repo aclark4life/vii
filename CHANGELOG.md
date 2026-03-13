@@ -8,6 +8,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- Image preview in content panel (PNG, JPG, GIF, BMP, WebP, ICO, TIFF)
+  - Shows image dimensions and format in header
+  - Press `e` to open in system viewer (Preview on macOS)
 - Toggle git blame on/off with `b` key (was show-only before)
 - Toggle git log on/off with `l` key (was show-only before)
 - Horizontal scrolling in content panel with `h`/`H` (left) and `L` (right) keys
