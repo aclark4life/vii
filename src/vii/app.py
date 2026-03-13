@@ -595,7 +595,8 @@ class Vii(App):
             lines = content.split("\n")
             if len(lines) > max_lines:
                 truncated = "\n".join(lines[:max_lines])
-                return f"{truncated}\n\n[dim]... truncated ({len(lines):,} total lines)[/dim]"
+                # Add plain text truncation marker (will be styled in display)
+                return f"{truncated}\n\n... truncated ({len(lines):,} total lines)"
 
             return content
         except UnicodeDecodeError:
@@ -968,6 +969,14 @@ class Vii(App):
         # Read file content (I/O operation)
         content = self._read_file_content(path)
 
+        # Check if content was truncated
+        truncation_msg = None
+        if "\n\n... truncated (" in content:
+            # Split off truncation message for separate styling
+            parts = content.rsplit("\n\n... truncated (", 1)
+            content = parts[0]
+            truncation_msg = Text(f"\n\n... truncated ({parts[1]}", style="dim")
+
         # Pre-render the syntax highlighting in the worker thread
         # This is the expensive part that would otherwise block the UI
         rendered_content = None
@@ -979,7 +988,10 @@ class Vii(App):
                 highlighted = highlight_with_tree_sitter(content, ts_language, line_numbers=True)
                 if highlighted:
                     header = Text(f"📄 {path.name}\n\n", style="bold")
-                    rendered_content = Group(header, highlighted)
+                    if truncation_msg:
+                        rendered_content = Group(header, highlighted, truncation_msg)
+                    else:
+                        rendered_content = Group(header, highlighted)
 
             # Fall back to Pygments if tree-sitter didn't work
             if rendered_content is None:
@@ -988,7 +1000,10 @@ class Vii(App):
                 if lexer:
                     syntax = Syntax(content, lexer, theme=theme, line_numbers=True)
                     header = Text(f"📄 {path.name}\n\n", style="bold")
-                    rendered_content = Group(header, syntax)
+                    if truncation_msg:
+                        rendered_content = Group(header, syntax, truncation_msg)
+                    else:
+                        rendered_content = Group(header, syntax)
 
         # Build the result
         result = {
