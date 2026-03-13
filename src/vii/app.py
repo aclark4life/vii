@@ -385,6 +385,9 @@ class Vii(App):
         Args:
             theme: The new Theme object (from theme_changed_signal).
         """
+        # Save theme to config
+        self._config.theme = self.theme
+        self._config.save()
         # Re-render the content with the new syntax theme
         self._update_content_display()
 
