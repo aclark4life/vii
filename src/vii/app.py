@@ -147,6 +147,8 @@ class Vii(App):
 
     def __init__(self, start_path: Path | None = None):
         super().__init__()
+        # Register "random" as a theme option
+        self._register_random_theme()
         # Load configuration (theme is applied in on_mount)
         self._config = Config.load()
         self.start_path = start_path or Path.cwd()
@@ -381,12 +383,33 @@ class Vii(App):
         else:
             self.sub_title = f"📂 {self.start_path}"
 
+    def _register_random_theme(self) -> None:
+        """Register a 'random' pseudo-theme in the theme list."""
+        from textual.theme import Theme
+
+        # Create a placeholder theme - it won't actually be used
+        # because we intercept it in _on_theme_changed
+        random_theme = Theme(
+            name="random",
+            primary="#888888",
+            dark=True,
+        )
+        self.register_theme(random_theme)
+
     def _on_theme_changed(self, theme: object) -> None:
         """React to theme changes by updating the content display.
 
         Args:
             theme: The new Theme object (from theme_changed_signal).
         """
+        # If "random" was selected, apply a random real theme
+        if self.theme == "random":
+            self._apply_random_theme()
+            # Save "random" to config so it picks a new theme on each startup
+            self._config.theme = "random"
+            self._config.save()
+            return
+
         # Save theme to config
         self._config.theme = self.theme
         self._config.save()
@@ -1776,26 +1799,11 @@ class Vii(App):
         """Apply a random theme without saving to config."""
         import random
 
-        from vii.content import THEME_MAP
-
-        theme_name = random.choice(list(THEME_MAP.keys()))
+        # Get all available themes except "random" itself
+        themes = [name for name in self.available_themes.keys() if name != "random"]
+        theme_name = random.choice(themes)
         self.theme = theme_name
         self.notify(f"Random theme: {theme_name}")
-
-    def _set_random_theme(self) -> None:
-        """Set theme to random mode and apply a random theme."""
-        import random
-
-        from vii.content import THEME_MAP
-
-        # Save "random" to config so it picks a random theme on each startup
-        self._config.theme = "random"
-        self._config.save()
-
-        # Apply a random theme now
-        theme_name = random.choice(list(THEME_MAP.keys()))
-        self.theme = theme_name
-        self.notify(f"Theme set to random (currently: {theme_name})")
 
 
 def main():
