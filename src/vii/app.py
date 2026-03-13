@@ -151,7 +151,6 @@ class Vii(App):
         self._register_random_theme()
         # Load configuration (theme is applied in on_mount)
         self._config = Config.load()
-        self._applying_random_theme = False  # Flag to prevent overwriting "random" config
         self.start_path = start_path or Path.cwd()
         self.editor_command = self._detect_editor()
         self.is_terminal_editor = self._is_terminal_editor()
@@ -303,9 +302,7 @@ class Vii(App):
 
         # Apply saved theme (must be done after mount for Textual to apply it)
         if self._config.theme == "random":
-            self._applying_random_theme = True
             self._apply_random_theme()
-            self._applying_random_theme = False
         elif self._config.theme:
             self.theme = self._config.theme
 
@@ -407,16 +404,14 @@ class Vii(App):
         """
         # If "random" was selected from theme picker, apply a random real theme
         if self.theme == "random":
-            self._applying_random_theme = True
             self._apply_random_theme()
             # Save "random" to config so it picks a new theme on each startup
             self._config.theme = "random"
             self._config.save()
-            self._applying_random_theme = False
             return
 
-        # Don't overwrite "random" config when applying a random theme
-        if not self._applying_random_theme:
+        # Don't overwrite config if it's set to "random" (we're just applying a random theme)
+        if self._config.theme != "random":
             self._config.theme = self.theme
             self._config.save()
 
