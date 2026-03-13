@@ -1455,7 +1455,16 @@ class Vii(App):
         """Handle mouse clicks to stop scroll animations and highlight blame lines."""
         # Check if the click is in the content scroll container
         scroll_container = self.query_one("#content-scroll", ScrollableContainer)
+        tree = self.query_one(DirectoryTree)
         widget_at_click, _ = self.get_widget_at(event.screen_x, event.screen_y)
+
+        # Handle double-click on directory tree to open file in editor
+        if event.chain >= 2 and (widget_at_click is tree or tree in widget_at_click.ancestors):
+            if tree.cursor_node and tree.cursor_node.data:
+                path = tree.cursor_node.data.path
+                if path.is_file():
+                    self.action_edit_file()
+                    return
 
         # If click is within the scroll container or its children
         if widget_at_click is scroll_container or scroll_container in widget_at_click.ancestors:
