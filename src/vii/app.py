@@ -13,13 +13,14 @@ from rich.text import Text
 from textual import events, work
 from textual.app import App, ComposeResult
 from textual.binding import Binding
-from textual.command import Hit, Hits, Provider
+from textual.command import Hits
 from textual.containers import Horizontal, ScrollableContainer, Vertical
 from textual.reactive import reactive
-from textual.widget import Widget
 from textual.widgets import DirectoryTree, Footer, Header, Input, Static
 from textual.worker import Worker, WorkerState
 
+from vii.commands import GitCommandProvider
+from vii.content import get_syntax_lexer, get_syntax_theme, read_file_content
 from vii.git_utils import (
     get_git_branch,
     get_git_file_status,
@@ -28,224 +29,7 @@ from vii.git_utils import (
     is_git_repo,
 )
 from vii.tree_sitter_highlight import get_language_for_file, highlight_with_tree_sitter
-
-
-class GitDirectoryTree(DirectoryTree):
-    """DirectoryTree with git status indicators."""
-
-    def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs)
-        self.git_file_status: dict[str, str] = {}
-        # Cache for path -> relative path mapping (avoid repeated computation)
-        self._rel_path_cache: dict[Path, str | None] = {}
-        self._tree_root: Path | None = None
-
-    def _get_rel_path(self, path: Path) -> str | None:
-        """Get cached relative path for a file."""
-        if path in self._rel_path_cache:
-            return self._rel_path_cache[path]
-
-        # Lazily initialize tree root
-        if self._tree_root is None:
-            self._tree_root = Path(self.path)
-
-        try:
-            rel_path = str(path.relative_to(self._tree_root))
-            self._rel_path_cache[path] = rel_path
-            return rel_path
-        except (ValueError, AttributeError):
-            self._rel_path_cache[path] = None
-            return None
-
-    def clear_path_cache(self) -> None:
-        """Clear the relative path cache (call when tree root changes)."""
-        self._rel_path_cache.clear()
-        self._tree_root = None
-
-    def render_label(self, node, base_style, style):
-        """Render a label with git status indicator."""
-        label = super().render_label(node, base_style, style)
-
-        # Quick exit if no git status data
-        if not self.git_file_status:
-            return label
-
-        # Add git status indicator if available
-        if node.data and hasattr(node.data, "path"):
-            path = node.data.path
-            # Use cached relative path lookup
-            rel_path = self._get_rel_path(path)
-            if rel_path and rel_path in self.git_file_status:
-                status_code = self.git_file_status[rel_path]
-                # Map status codes to indicators
-                if "M" in status_code:
-                    label = Text("~", style="yellow") + Text(" ") + label
-                elif "A" in status_code:
-                    label = Text("+", style="green") + Text(" ") + label
-                elif "D" in status_code:
-                    label = Text("-", style="red") + label
-                elif "?" in status_code:
-                    label = Text("?", style="cyan") + Text(" ") + label
-
-        return label
-
-
-class GitCommandProvider(Provider):
-    """Command provider for git commands with submenu."""
-
-    @property
-    def _git_commands(self):
-        """Get the list of git commands."""
-        app = self.app
-        assert isinstance(app, Vii)
-
-        return [
-            ("Status", app._git_status, "Show git status"),
-            ("Log", app._git_log, "Show git commit history"),
-            ("Refresh", app._git_refresh, "Refresh git status"),
-            ("Switch Branch", app._git_switch_branch, "Switch to a different branch"),
-            ("Add Current File", app._git_add_current, "Stage the current file"),
-            ("Add All", app._git_add_all, "Stage all changes"),
-            ("Commit", app._git_commit, "Commit staged changes"),
-            ("Push", app._git_push, "Push to remote"),
-            ("Pull", app._git_pull, "Pull from remote"),
-            ("Diff Current File", app._git_diff_current, "Show diff for current file"),
-            ("Blame Current File", app._git_blame_current, "Show git blame for current file"),
-        ]
-
-    async def discover(self) -> Hits:
-        """Show top-level Git menu when palette is opened."""
-        app = self.app
-        assert isinstance(app, Vii)
-
-        # Only show git menu if in a git repository
-        if not app.git_branch:
-            return
-
-        from textual.command import DiscoveryHit
-
-        # Yield a single "Git" menu item
-        yield DiscoveryHit(
-            "Git",
-            self._show_git_commands,
-            help=f"Git commands for branch: {app.git_branch}",
-        )
-
-    async def _show_git_commands(self) -> None:
-        """Show git subcommands in the palette."""
-        from textual.command import CommandPalette
-
-        parent_provider = self
-
-        # Create a provider for git subcommands
-        class GitSubCommandProvider(Provider):
-            """Provider for git subcommands."""
-
-            async def discover(self) -> Hits:
-                """Show all git commands."""
-                from textual.command import DiscoveryHit
-
-                for command_name, callback, help_text in parent_provider._git_commands:
-                    yield DiscoveryHit(
-                        command_name,
-                        callback,
-                        help=help_text,
-                    )
-
-            async def search(self, query: str) -> Hits:
-                """Search git commands."""
-                matcher = self.matcher(query)
-
-                for command_name, callback, help_text in parent_provider._git_commands:
-                    score = matcher.match(command_name)
-                    if score > 0:
-                        yield Hit(
-                            score,
-                            matcher.highlight(command_name),
-                            callback,
-                            help=help_text,
-                        )
-
-        # Push a new command palette with git subcommands
-        self.app.push_screen(CommandPalette(providers=[GitSubCommandProvider]))
-
-    async def search(self, query: str) -> Hits:
-        """Search for git menu."""
-        matcher = self.matcher(query)
-
-        app = self.app
-        assert isinstance(app, Vii)
-
-        # Only show git menu if in a git repository
-        if not app.git_branch:
-            return
-
-        # Match against "Git"
-        score = matcher.match("Git")
-        if score > 0:
-            yield Hit(
-                score,
-                matcher.highlight("Git"),
-                self._show_git_commands,
-                help=f"Git commands for branch: {app.git_branch}",
-            )
-
-
-class VerticalSplitter(Widget):
-    """A draggable vertical splitter for resizing panels."""
-
-    DEFAULT_CSS = """
-    VerticalSplitter {
-        width: 1;
-        height: 100%;
-        background: $primary;
-        content-align: center middle;
-    }
-
-    VerticalSplitter:hover {
-        background: $accent;
-    }
-
-    VerticalSplitter.-dragging {
-        background: $accent;
-    }
-    """
-
-    is_dragging: reactive[bool] = reactive(False)
-
-    def __init__(self, **kwargs) -> None:
-        super().__init__(**kwargs)
-        self._drag_start_x: int = 0
-
-    def render(self) -> str:
-        """Render the splitter."""
-        return "┃"
-
-    def on_mouse_down(self, event: events.MouseDown) -> None:
-        """Start dragging when mouse is pressed."""
-        self.is_dragging = True
-        self._drag_start_x = event.screen_x
-        self.capture_mouse()
-        self.add_class("-dragging")
-        event.stop()
-
-    def on_mouse_up(self, event: events.MouseUp) -> None:
-        """Stop dragging when mouse is released."""
-        if self.is_dragging:
-            self.is_dragging = False
-            self.release_mouse()
-            self.remove_class("-dragging")
-            event.stop()
-
-    def on_mouse_move(self, event: events.MouseMove) -> None:
-        """Handle mouse movement during drag."""
-        if self.is_dragging:
-            # Calculate the new sidebar width based on mouse position
-            app = self.app
-            if isinstance(app, Vii):
-                new_width = event.screen_x
-                app.set_sidebar_width(new_width)
-            event.stop()
+from vii.widgets import GitDirectoryTree, VerticalSplitter
 
 
 class Vii(App):
@@ -574,79 +358,6 @@ class Vii(App):
         else:
             self.sub_title = f"📂 {self.start_path}"
 
-    def _read_file_content(self, path: Path, max_size: int = 100000, max_lines: int = 2000) -> str:
-        """Read file content, handling binary files and size limits.
-
-        Args:
-            path: Path to the file to read
-            max_size: Maximum file size in bytes (default 100KB)
-            max_lines: Maximum number of lines to read (default 2000)
-        """
-        try:
-            # Check file size first
-            file_size = path.stat().st_size
-            if file_size > max_size:
-                return f"[dim]File too large to preview ({file_size:,} bytes)[/dim]"
-
-            # Try to read as text
-            content = path.read_text(encoding="utf-8")
-
-            # Check line count - truncate if too many lines
-            lines = content.split("\n")
-            if len(lines) > max_lines:
-                truncated = "\n".join(lines[:max_lines])
-                # Add plain text truncation marker (will be styled in display)
-                return f"{truncated}\n\n... truncated ({len(lines):,} total lines)"
-
-            return content
-        except UnicodeDecodeError:
-            return "[dim]Binary file - cannot preview[/dim]"
-        except PermissionError:
-            return "[dim]Permission denied[/dim]"
-        except Exception as e:
-            return f"[dim]Cannot read file: {e}[/dim]"
-
-    def _get_syntax_theme(self) -> str:
-        """Get the appropriate syntax highlighting theme based on the current app theme."""
-        # Map Textual themes to Pygments/Rich syntax themes
-        theme_map = {
-            # Dark themes
-            "textual-dark": "github-dark",
-            "atom-one-dark": "one-dark",
-            "nord": "nord",
-            "gruvbox": "gruvbox-dark",
-            "tokyo-night": "material",
-            "monokai": "monokai",
-            "dracula": "dracula",
-            "catppuccin-mocha": "native",  # Use native instead of monokai
-            "catppuccin-frappe": "native",
-            "catppuccin-macchiato": "native",
-            "flexoki": "zenburn",
-            "textual-ansi": "native",
-            "solarized-dark": "solarized-dark",
-            "rose-pine": "zenburn",  # Muted, low-contrast like rose-pine
-            "rose-pine-moon": "zenburn",
-            # Light themes
-            "textual-light": "friendly",
-            "atom-one-light": "friendly",
-            "solarized-light": "solarized-light",
-            "catppuccin-latte": "friendly",
-            "rose-pine-dawn": "friendly",  # Use friendly for more color
-        }
-
-        current_theme = self.theme
-        if current_theme in theme_map:
-            return theme_map[current_theme]
-
-        # Fallback based on dark/light mode
-        try:
-            theme_obj = self.current_theme
-            if theme_obj and theme_obj.dark:
-                return "one-dark"
-            return "friendly"
-        except Exception:
-            return "one-dark"
-
     def _on_theme_changed(self, theme: object) -> None:
         """React to theme changes by updating the content display.
 
@@ -655,90 +366,6 @@ class Vii(App):
         """
         # Re-render the content with the new syntax theme
         self._update_content_display()
-
-    def _get_syntax_lexer(self, path: Path) -> str | None:
-        """Get the Pygments lexer name for a file based on extension."""
-        extension_map = {
-            # Python
-            ".py": "python",
-            ".pyw": "python",
-            ".pyi": "python",
-            # Shell
-            ".sh": "bash",
-            ".bash": "bash",
-            ".zsh": "zsh",
-            ".fish": "fish",
-            # Config files
-            ".toml": "toml",
-            ".yaml": "yaml",
-            ".yml": "yaml",
-            ".json": "json",
-            ".ini": "ini",
-            ".cfg": "ini",
-            ".conf": "ini",
-            # Markup
-            ".md": "markdown",
-            ".markdown": "markdown",
-            ".rst": "rst",
-            ".html": "html",
-            ".htm": "html",
-            ".xml": "xml",
-            ".css": "css",
-            # JavaScript / TypeScript
-            ".js": "javascript",
-            ".mjs": "javascript",
-            ".cjs": "javascript",
-            ".ts": "typescript",
-            ".tsx": "tsx",
-            ".jsx": "jsx",
-            # C family
-            ".c": "c",
-            ".h": "c",
-            ".cpp": "cpp",
-            ".cxx": "cpp",
-            ".cc": "cpp",
-            ".hpp": "cpp",
-            ".hxx": "cpp",
-            # Other languages
-            ".rs": "rust",
-            ".go": "go",
-            ".rb": "ruby",
-            ".java": "java",
-            ".kt": "kotlin",
-            ".swift": "swift",
-            ".php": "php",
-            ".sql": "sql",
-            ".r": "r",
-            ".R": "r",
-            ".lua": "lua",
-            ".pl": "perl",
-            ".pm": "perl",
-            # Data formats
-            ".csv": "text",
-            ".tsv": "text",
-            # Misc
-            ".dockerfile": "docker",
-            ".makefile": "make",
-            ".tex": "latex",
-            ".vim": "vim",
-        }
-        # Handle special filenames without extensions
-        filename_map = {
-            "Dockerfile": "docker",
-            "Makefile": "make",
-            "justfile": "make",
-            "Justfile": "make",
-            ".justfile": "make",
-            "CMakeLists.txt": "cmake",
-            ".bashrc": "bash",
-            ".bash_profile": "bash",
-            ".zshrc": "zsh",
-            ".gitignore": "ini",
-            ".editorconfig": "ini",
-        }
-        if path.name in filename_map:
-            return filename_map[path.name]
-        return extension_map.get(path.suffix.lower())
 
     def _navigate_to_directory(self, directory: Path) -> None:
         """Navigate to a different directory by reloading the tree."""
@@ -967,7 +594,7 @@ class Vii(App):
         This does all the expensive work (file I/O, syntax highlighting) off the main thread.
         """
         # Read file content (I/O operation)
-        content = self._read_file_content(path)
+        content = read_file_content(path)
 
         # Check if content was truncated
         truncation_msg = None
@@ -995,8 +622,8 @@ class Vii(App):
 
             # Fall back to Pygments if tree-sitter didn't work
             if rendered_content is None:
-                lexer = self._get_syntax_lexer(path)
-                theme = self._get_syntax_theme()
+                lexer = get_syntax_lexer(path)
+                theme = get_syntax_theme(self.theme)
                 if lexer:
                     syntax = Syntax(content, lexer, theme=theme, line_numbers=True)
                     header = Text(f"📄 {path.name}\n\n", style="bold")
@@ -1076,15 +703,15 @@ class Vii(App):
                     content_display.update(f"[bold]📁 {path.name}[/bold]\n\n[dim]Directory[/dim]")
                     self.original_content = ""
                 else:
-                    content = self._read_file_content(path)
+                    content = read_file_content(path)
                     self.original_content = content
 
-                    lexer = self._get_syntax_lexer(path)
+                    lexer = get_syntax_lexer(path)
                     if lexer and not content.startswith("[dim]"):
                         syntax = Syntax(
                             content,
                             lexer,
-                            theme=self._get_syntax_theme(),
+                            theme=get_syntax_theme(self.theme),
                             line_numbers=True,
                         )
                         header = Text(f"📄 {path.name}\n\n", style="bold")
@@ -1392,13 +1019,13 @@ class Vii(App):
                 if path.is_file():
                     content = self.original_content
                     # Check if we can syntax highlight
-                    lexer = self._get_syntax_lexer(path)
+                    lexer = get_syntax_lexer(path)
                     if lexer and not content.startswith("[dim]"):
                         # Use syntax highlighting with theme-aware color scheme
                         syntax = Syntax(
                             content,
                             lexer,
-                            theme=self._get_syntax_theme(),
+                            theme=get_syntax_theme(self.theme),
                             line_numbers=True,
                         )
                         # Combine header and syntax
@@ -1428,7 +1055,7 @@ class Vii(App):
             return
 
         # Get the original content
-        content = self._read_file_content(path)
+        content = read_file_content(path)
         self.original_content = content
 
         # Find all matches and their line numbers (for scrolling)
@@ -1923,7 +1550,7 @@ class Vii(App):
                 syntax = Syntax(
                     blame_output,
                     "diff",  # Use diff lexer for git blame output
-                    theme=self._get_syntax_theme(),
+                    theme=get_syntax_theme(self.theme),
                     line_numbers=False,
                     word_wrap=False,
                 )
