@@ -20,6 +20,7 @@ from textual.widgets import DirectoryTree, Footer, Header, Input, Static
 from textual.worker import Worker, WorkerState
 
 from vii.commands import GitCommandProvider
+from vii.config import Config
 from vii.content import get_syntax_lexer, get_syntax_theme, read_file_content
 from vii.git_utils import (
     get_git_branch,
@@ -146,7 +147,9 @@ class Vii(App):
 
     def __init__(self, start_path: Path | None = None):
         super().__init__()
-        self.theme = "textual-dark"  # Set default theme
+        # Load configuration
+        self._config = Config.load()
+        self.theme = self._config.theme
         self.start_path = start_path or Path.cwd()
         self.editor_command = self._detect_editor()
         self.is_terminal_editor = self._is_terminal_editor()
@@ -178,15 +181,26 @@ class Vii(App):
         self.git_blame_viewing: bool = False
         self._update_git_info()
 
-    def set_sidebar_width(self, width: int) -> None:
-        """Set the sidebar width, with bounds checking."""
+    def set_sidebar_width(self, width: int, save: bool = True) -> None:
+        """Set the sidebar width, with bounds checking.
+
+        Args:
+            width: The desired width in columns.
+            save: Whether to save the width to config (default True).
+        """
         # Get screen width and set minimum/maximum bounds
         screen_width = self.size.width
         min_width = 10
         max_width = screen_width - 15  # Leave at least 15 columns for content
 
         # Clamp width to bounds
-        self.sidebar_width = max(min_width, min(width, max_width))
+        new_width = max(min_width, min(width, max_width))
+        self.sidebar_width = new_width
+
+        # Save to config
+        if save:
+            self._config.sidebar_width = new_width
+            self._config.save()
 
     def watch_sidebar_width(self, width: int) -> None:
         """React to sidebar width changes."""
@@ -282,8 +296,11 @@ class Vii(App):
 
     def on_mount(self) -> None:
         """Set initial sidebar width when app mounts."""
-        # Set initial width based on screen size (about 1/3 of screen)
-        initial_width = max(20, self.size.width // 3)
+        # Use saved sidebar width or default to 1/3 of screen
+        if self._config.sidebar_width is not None:
+            initial_width = self._config.sidebar_width
+        else:
+            initial_width = max(20, self.size.width // 3)
         self.sidebar_width = initial_width
 
         # Subscribe to theme changes to update syntax highlighting
@@ -1728,6 +1745,9 @@ class Vii(App):
         """Change the application theme."""
         try:
             self.theme = theme_name
+            # Save theme to config
+            self._config.theme = theme_name
+            self._config.save()
             self.notify(f"Theme changed to {theme_name}")
             # Re-render content with new syntax theme
             self._update_content_display()

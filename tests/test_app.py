@@ -9,6 +9,7 @@ import pytest
 from textual.widgets import DirectoryTree
 
 from vii.app import Vii, main
+from vii.config import Config, get_config_dir, get_config_path
 
 
 class TestVii:
@@ -281,3 +282,101 @@ class TestMain:
 
             captured = capsys.readouterr()
             assert "does not exist" in captured.err
+
+
+class TestConfig:
+    """Test cases for the Config class."""
+
+    def test_default_config(self):
+        """Test default configuration values."""
+        config = Config()
+        assert config.theme == "textual-dark"
+        assert config.sidebar_width is None
+
+    def test_config_from_dict(self):
+        """Test creating config from a dictionary."""
+        data = {"theme": "monokai", "sidebar_width": 40}
+        config = Config.from_dict(data)
+        assert config.theme == "monokai"
+        assert config.sidebar_width == 40
+
+    def test_config_from_dict_partial(self):
+        """Test creating config from partial dictionary."""
+        data = {"theme": "dracula"}
+        config = Config.from_dict(data)
+        assert config.theme == "dracula"
+        assert config.sidebar_width is None
+
+    def test_config_from_dict_empty(self):
+        """Test creating config from empty dictionary uses defaults."""
+        config = Config.from_dict({})
+        assert config.theme == "textual-dark"
+        assert config.sidebar_width is None
+
+    def test_config_to_dict(self):
+        """Test converting config to dictionary."""
+        config = Config(theme="nord", sidebar_width=35)
+        data = config.to_dict()
+        assert data["theme"] == "nord"
+        assert data["sidebar_width"] == 35
+
+    def test_config_to_dict_no_sidebar_width(self):
+        """Test that None sidebar_width is excluded from dict."""
+        config = Config(theme="nord", sidebar_width=None)
+        data = config.to_dict()
+        assert data["theme"] == "nord"
+        assert "sidebar_width" not in data
+
+    def test_config_save_and_load(self, tmp_path, monkeypatch):
+        """Test saving and loading config."""
+        # Use a temporary config directory
+        config_dir = tmp_path / ".config" / "vii"
+        monkeypatch.setattr("vii.config.get_config_dir", lambda: config_dir)
+        monkeypatch.setattr("vii.config.get_config_path", lambda: config_dir / "config.toml")
+
+        # Save config
+        config = Config(theme="gruvbox", sidebar_width=50)
+        config.save()
+
+        # Verify file was created
+        config_path = config_dir / "config.toml"
+        assert config_path.exists()
+
+        # Load config
+        loaded = Config.load()
+        assert loaded.theme == "gruvbox"
+        assert loaded.sidebar_width == 50
+
+    def test_config_load_missing_file(self, tmp_path, monkeypatch):
+        """Test loading config when file doesn't exist returns defaults."""
+        config_dir = tmp_path / ".config" / "vii"
+        monkeypatch.setattr("vii.config.get_config_dir", lambda: config_dir)
+        monkeypatch.setattr("vii.config.get_config_path", lambda: config_dir / "config.toml")
+
+        config = Config.load()
+        assert config.theme == "textual-dark"
+        assert config.sidebar_width is None
+
+    def test_config_load_invalid_file(self, tmp_path, monkeypatch):
+        """Test loading config with invalid TOML returns defaults."""
+        config_dir = tmp_path / ".config" / "vii"
+        config_dir.mkdir(parents=True)
+        config_path = config_dir / "config.toml"
+        config_path.write_text("invalid toml [[[")
+
+        monkeypatch.setattr("vii.config.get_config_dir", lambda: config_dir)
+        monkeypatch.setattr("vii.config.get_config_path", lambda: config_path)
+
+        config = Config.load()
+        assert config.theme == "textual-dark"
+        assert config.sidebar_width is None
+
+    def test_get_config_dir(self):
+        """Test config directory path."""
+        config_dir = get_config_dir()
+        assert config_dir == Path.home() / ".config" / "vii"
+
+    def test_get_config_path(self):
+        """Test config file path."""
+        config_path = get_config_path()
+        assert config_path == Path.home() / ".config" / "vii" / "config.toml"
