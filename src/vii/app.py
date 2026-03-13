@@ -151,6 +151,7 @@ class Vii(App):
         self._register_random_theme()
         # Load configuration (theme is applied in on_mount)
         self._config = Config.load()
+        self._applying_random_theme = False  # Flag to prevent overwriting "random" config
         self.start_path = start_path or Path.cwd()
         self.editor_command = self._detect_editor()
         self.is_terminal_editor = self._is_terminal_editor()
@@ -297,9 +298,14 @@ class Vii(App):
 
     def on_mount(self) -> None:
         """Set initial sidebar width when app mounts."""
+        # Subscribe to theme changes first
+        self.theme_changed_signal.subscribe(self, self._on_theme_changed)
+
         # Apply saved theme (must be done after mount for Textual to apply it)
         if self._config.theme == "random":
+            self._applying_random_theme = True
             self._apply_random_theme()
+            self._applying_random_theme = False
         elif self._config.theme:
             self.theme = self._config.theme
 
@@ -309,9 +315,6 @@ class Vii(App):
         else:
             initial_width = max(20, self.size.width // 3)
         self.sidebar_width = initial_width
-
-        # Subscribe to theme changes to update syntax highlighting
-        self.theme_changed_signal.subscribe(self, self._on_theme_changed)
 
         # Update header with git info
         self._update_header()
@@ -402,17 +405,21 @@ class Vii(App):
         Args:
             theme: The new Theme object (from theme_changed_signal).
         """
-        # If "random" was selected, apply a random real theme
+        # If "random" was selected from theme picker, apply a random real theme
         if self.theme == "random":
+            self._applying_random_theme = True
             self._apply_random_theme()
             # Save "random" to config so it picks a new theme on each startup
             self._config.theme = "random"
             self._config.save()
+            self._applying_random_theme = False
             return
 
-        # Save theme to config
-        self._config.theme = self.theme
-        self._config.save()
+        # Don't overwrite "random" config when applying a random theme
+        if not self._applying_random_theme:
+            self._config.theme = self.theme
+            self._config.save()
+
         # Re-render the content with the new syntax theme
         self._update_content_display()
 
