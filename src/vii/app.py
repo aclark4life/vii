@@ -296,6 +296,10 @@ class Vii(App):
 
     def on_mount(self) -> None:
         """Set initial sidebar width when app mounts."""
+        # Apply saved theme (must be done after mount for Textual to apply it)
+        if self._config.theme:
+            self.theme = self._config.theme
+
         # Use saved sidebar width or default to 1/3 of screen
         if self._config.sidebar_width is not None:
             initial_width = self._config.sidebar_width
