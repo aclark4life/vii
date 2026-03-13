@@ -590,6 +590,81 @@ class Vii(App):
         # Single timer - load content after navigation stops
         self._content_update_timer = self.set_timer(0.1, self._do_content_update)
 
+    def _render_directory_listing(self, path: Path) -> Text:
+        """Render a directory listing for display in the content panel.
+
+        Args:
+            path: Path to the directory to list.
+
+        Returns:
+            Rich Text object with formatted directory listing.
+        """
+        text = Text()
+        text.append(f"📁 {path.name}/\n\n", style="bold")
+
+        try:
+            # Get directory contents
+            entries = sorted(path.iterdir(), key=lambda p: (not p.is_dir(), p.name.lower()))
+
+            if not entries:
+                text.append("(empty directory)", style="dim")
+                return text
+
+            # Separate directories and files
+            dirs = [e for e in entries if e.is_dir() and not e.name.startswith(".")]
+            files = [e for e in entries if e.is_file() and not e.name.startswith(".")]
+            hidden = [e for e in entries if e.name.startswith(".")]
+
+            # List directories first
+            for d in dirs:
+                status_indicator = self._get_git_status_indicator(d)
+                text.append(status_indicator)
+                text.append("📁 ", style="bold")
+                text.append(f"{d.name}/\n", style="cyan")
+
+            # Then files
+            for f in files:
+                status_indicator = self._get_git_status_indicator(f)
+                text.append(status_indicator)
+                text.append("📄 ")
+                text.append(f"{f.name}\n")
+
+            # Summary of hidden files
+            if hidden:
+                text.append(f"\n({len(hidden)} hidden items)", style="dim")
+
+        except PermissionError:
+            text.append("(permission denied)", style="red")
+        except Exception as e:
+            text.append(f"(error: {e})", style="red")
+
+        return text
+
+    def _get_git_status_indicator(self, path: Path) -> str:
+        """Get git status indicator for a path.
+
+        Args:
+            path: Path to check.
+
+        Returns:
+            Status indicator string (e.g., "~ " for modified).
+        """
+        try:
+            rel_path = str(path.relative_to(self.start_path))
+            if rel_path in self.git_file_status:
+                status_code = self.git_file_status[rel_path]
+                if "M" in status_code:
+                    return "~ "
+                elif "A" in status_code:
+                    return "+ "
+                elif "D" in status_code:
+                    return "- "
+                elif "?" in status_code:
+                    return "? "
+        except (ValueError, AttributeError):
+            pass
+        return "  "
+
     def _do_content_update(self) -> None:
         """Load and display content after navigation stops (100ms debounce)."""
         self._content_update_timer = None
@@ -623,9 +698,10 @@ class Vii(App):
             scroll_container = self.query_one("#content-scroll", ScrollableContainer)
 
             if path.is_dir():
-                content_display.update(f"[bold]📁 {path.name}[/bold]\n\n[dim]Directory[/dim]")
+                content_display.update(self._render_directory_listing(path))
                 self.original_content = ""
                 self._displayed_path = path
+                scroll_container.scroll_home(animate=False)
                 return
 
             # Use cached content if available (includes syntax highlighting)
@@ -760,7 +836,7 @@ class Vii(App):
                 scroll_container = self.query_one("#content-scroll", ScrollableContainer)
 
                 if path.is_dir():
-                    content_display.update(f"[bold]📁 {path.name}[/bold]\n\n[dim]Directory[/dim]")
+                    content_display.update(self._render_directory_listing(path))
                     self.original_content = ""
                 else:
                     content = read_file_content(path)
