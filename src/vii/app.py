@@ -1802,6 +1802,19 @@ class Vii(App):
         except Exception as e:
             self.notify(f"Failed to save config: {e}", severity="error")
 
+    def _edit_config(self) -> None:
+        """Open the config file in the editor."""
+        from vii.config import get_config_path
+
+        config_path = get_config_path()
+
+        # Ensure config file exists
+        if not config_path.exists():
+            self._config.save()
+
+        # Open in editor
+        self._open_in_editor(config_path)
+
     def _apply_random_theme(self) -> None:
         """Apply a random theme without saving to config."""
         import random
