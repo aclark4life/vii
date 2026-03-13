@@ -147,9 +147,8 @@ class Vii(App):
 
     def __init__(self, start_path: Path | None = None):
         super().__init__()
-        # Load configuration
+        # Load configuration (theme is applied in on_mount)
         self._config = Config.load()
-        self.theme = self._config.theme
         self.start_path = start_path or Path.cwd()
         self.editor_command = self._detect_editor()
         self.is_terminal_editor = self._is_terminal_editor()
