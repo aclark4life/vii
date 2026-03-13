@@ -17,9 +17,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - `g`/`G` to jump to top/bottom
   - Full-width highlight bar
   - Auto-scroll to keep highlighted line visible
-
-### Fixed
-- Fixed pyproject.toml: dependencies were incorrectly placed in [project.urls] section
+- Double-click on file in sidebar to open in editor (same as `e` key)
 
 ## [0.1.0a4] - 2026-03-12
 
