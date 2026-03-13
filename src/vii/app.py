@@ -177,6 +177,7 @@ class Vii(App):
         # Track currently displayed path to avoid redundant updates
         self._displayed_path: Path | None = None
         self.git_log_viewing: bool = False
+        self.git_blame_viewing: bool = False
         self._update_git_info()
 
     def set_sidebar_width(self, width: int) -> None:
@@ -549,6 +550,7 @@ class Vii(App):
         self.search_matches = []
         self.current_match_index = -1
         self.git_log_viewing = False
+        self.git_blame_viewing = False
         self.git_log_page = 0
 
         try:
@@ -674,6 +676,7 @@ class Vii(App):
                 self.search_matches = []
                 self.current_match_index = -1
                 self.git_log_viewing = False
+                self.git_blame_viewing = False
                 self.git_log_page = 0
 
                 # Update display - content is already rendered, just swap it in
@@ -725,6 +728,7 @@ class Vii(App):
                 self.search_matches = []
                 self.current_match_index = -1
                 self.git_log_viewing = False
+                self.git_blame_viewing = False
                 self.git_log_page = 0
         except Exception:
             pass
@@ -846,6 +850,11 @@ class Vii(App):
                 event.prevent_default()
                 self.git_log_viewing = False
                 self.git_log_page = 0
+                self._update_content_display()
+            elif self.git_blame_viewing:
+                # Close git blame display and restore file content
+                event.prevent_default()
+                self.git_blame_viewing = False
                 self._update_content_display()
             elif self.search_query or self.search_matches:
                 # Clear search and highlights (only if search is active)
@@ -1570,6 +1579,14 @@ class Vii(App):
                 )
                 content_display = self.query_one("#content-display", Static)
                 content_display.update(syntax)
+
+                # Update state so ESC can restore file content
+                self.git_blame_viewing = True
+
+                # Focus the content panel
+                scroll_container = self.query_one("#content-scroll", ScrollableContainer)
+                scroll_container.focus()
+
                 self.notify(f"Showing blame for {path.name}")
             else:
                 self.notify("No blame information available", severity="information")
