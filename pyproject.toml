@@ -13,10 +13,6 @@ authors = [
     {name = "Jeffrey 'Alex' Clark"},
 ]
 
-[project.urls]
-Homepage = "https://github.com/aclark4life/vii"
-Repository = "https://github.com/aclark4life/vii"
-Issues = "https://github.com/aclark4life/vii/issues"
 dependencies = [
     "textual>=0.50.0",
     "rich>=13.0.0",
@@ -24,6 +20,11 @@ dependencies = [
     "term-image>=0.7.2",
     "tomli>=2.4.0 ; python_full_version < '3.11'",
 ]
+
+[project.urls]
+Homepage = "https://github.com/aclark4life/vii"
+Repository = "https://github.com/aclark4life/vii"
+Issues = "https://github.com/aclark4life/vii/issues"
 
 [project.optional-dependencies]
 dev = [

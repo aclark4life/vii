@@ -82,6 +82,7 @@ class Vii(App):
         width: 100%;
         height: 100%;
         border: solid $panel;
+        overflow-x: auto;
     }
 
     #content-scroll:focus {
@@ -90,6 +91,7 @@ class Vii(App):
 
     #content-display {
         padding: 1 2;
+        width: auto;
     }
 
     #content-search-container {
@@ -965,9 +967,11 @@ class Vii(App):
                 elif action_key == "end":
                     scroll_container.scroll_end()
                 elif action_key == "right":
-                    # l shows git log in content panel
-                    self._git_log()
-                # h does nothing in content panel
+                    # l toggles git log in content panel
+                    self.action_git_log()
+                elif action_key == "left":
+                    # h scrolls left in content panel
+                    scroll_container.action_scroll_left()
             else:
                 # Control the directory tree
                 if action_key == "down":
@@ -1058,6 +1062,14 @@ class Vii(App):
                 self.search_matches = []
                 self.current_match_index = -1
                 self.search_query = ""
+        elif content_focused and event.key == "H":
+            # Scroll left (horizontal)
+            event.prevent_default()
+            scroll_container.action_scroll_left()
+        elif content_focused and event.key == "L":
+            # Scroll right (horizontal)
+            event.prevent_default()
+            scroll_container.action_scroll_right()
         elif content_focused and event.key == "enter":
             # Switch focus back to sidebar
             event.prevent_default()
@@ -1446,12 +1458,29 @@ class Vii(App):
             self._open_shell(self.start_path)
 
     def action_git_blame(self) -> None:
-        """Show git blame for the current file."""
-        self._git_blame_current()
+        """Toggle git blame for the current file."""
+        if self.git_blame_viewing:
+            # Turn off blame and restore file content
+            self.git_blame_viewing = False
+            self._update_content_display()
+            # Get the current file name for the notification
+            tree = self.query_one(DirectoryTree)
+            if tree.cursor_node and tree.cursor_node.data:
+                path = tree.cursor_node.data.path
+                self.notify(f"Hiding blame for {path.name}")
+        else:
+            self._git_blame_current()
 
     def action_git_log(self) -> None:
-        """Show git log."""
-        self._git_log()
+        """Toggle git log."""
+        if self.git_log_viewing:
+            # Turn off log and restore file content
+            self.git_log_viewing = False
+            self.git_log_page = 0
+            self._update_content_display()
+            self.notify("Hiding git log")
+        else:
+            self._git_log()
 
     def _open_shell(self, directory: Path) -> None:
         """Open a shell in the specified directory."""
