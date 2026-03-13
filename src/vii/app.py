@@ -751,8 +751,8 @@ class Vii(App):
                 except Exception:
                     header = Text(f"🖼️ {path.name}\n\n", style="bold")
 
-                # Convert ANSI string to Rich Text
-                image_text = Text.from_ansi(image_str)
+                # Convert ANSI string to Rich Text (no_wrap to prevent responsive resizing)
+                image_text = Text.from_ansi(image_str, no_wrap=True)
                 rendered_content = Group(header, image_text)
                 return {
                     "path": path,
@@ -893,7 +893,7 @@ class Vii(App):
                                 )
                         except Exception:
                             header = Text(f"🖼️ {path.name}\n\n", style="bold")
-                        image_text = Text.from_ansi(image_str)
+                        image_text = Text.from_ansi(image_str, no_wrap=True)
                         content_display.update(Group(header, image_text))
                         self.original_content = f"[Image: {path.name}]"
                     else:
