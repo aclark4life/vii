@@ -10,6 +10,82 @@ if TYPE_CHECKING:
     pass
 
 
+class ConfigCommandProvider(Provider):
+    """Command provider for config commands."""
+
+    @property
+    def _config_commands(self):
+        """Get the list of config commands."""
+        from vii.app import Vii
+
+        app = self.app
+        assert isinstance(app, Vii)
+
+        return [
+            ("Save Config", app._save_config, "Save current settings to config file"),
+            ("Show Config Path", app._show_config_path, "Show config file location"),
+        ]
+
+    async def discover(self) -> Hits:
+        """Show top-level Config menu when palette is opened."""
+        from textual.command import DiscoveryHit
+
+        yield DiscoveryHit(
+            "Config",
+            self._show_config_commands,
+            help="Configuration settings",
+        )
+
+    async def _show_config_commands(self) -> None:
+        """Show config subcommands in the palette."""
+        from textual.command import CommandPalette
+
+        parent_provider = self
+
+        class ConfigSubCommandProvider(Provider):
+            """Provider for config subcommands."""
+
+            async def discover(self) -> Hits:
+                """Show all config commands."""
+                from textual.command import DiscoveryHit
+
+                for command_name, callback, help_text in parent_provider._config_commands:
+                    yield DiscoveryHit(
+                        command_name,
+                        callback,
+                        help=help_text,
+                    )
+
+            async def search(self, query: str) -> Hits:
+                """Search config commands."""
+                matcher = self.matcher(query)
+
+                for command_name, callback, help_text in parent_provider._config_commands:
+                    score = matcher.match(command_name)
+                    if score > 0:
+                        yield Hit(
+                            score,
+                            matcher.highlight(command_name),
+                            callback,
+                            help=help_text,
+                        )
+
+        self.app.push_screen(CommandPalette(providers=[ConfigSubCommandProvider]))
+
+    async def search(self, query: str) -> Hits:
+        """Search for config menu."""
+        matcher = self.matcher(query)
+
+        score = matcher.match("Config")
+        if score > 0:
+            yield Hit(
+                score,
+                matcher.highlight("Config"),
+                self._show_config_commands,
+                help="Configuration settings",
+            )
+
+
 class GitCommandProvider(Provider):
     """Command provider for git commands with submenu."""
 

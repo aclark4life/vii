@@ -19,7 +19,7 @@ from textual.reactive import reactive
 from textual.widgets import DirectoryTree, Footer, Header, Input, Static
 from textual.worker import Worker, WorkerState
 
-from vii.commands import GitCommandProvider
+from vii.commands import ConfigCommandProvider, GitCommandProvider
 from vii.config import Config
 from vii.content import get_syntax_lexer, get_syntax_theme, read_file_content
 from vii.git_utils import (
@@ -37,7 +37,7 @@ class Vii(App):
     """vii - Terminal file browser."""
 
     TITLE = "🤖 vii"
-    COMMANDS = App.COMMANDS | {GitCommandProvider}
+    COMMANDS = App.COMMANDS | {ConfigCommandProvider, GitCommandProvider}
 
     # Reactive variable for sidebar width (in columns)
     sidebar_width: reactive[int] = reactive(30)
@@ -1753,6 +1753,26 @@ class Vii(App):
             self._update_content_display()
         except Exception as e:
             self.notify(f"Failed to change theme: {e}", severity="error")
+
+    def _save_config(self) -> None:
+        """Save the current configuration to disk."""
+        try:
+            self._config.save()
+            from vii.config import get_config_path
+
+            self.notify(f"Config saved to {get_config_path()}")
+        except Exception as e:
+            self.notify(f"Failed to save config: {e}", severity="error")
+
+    def _show_config_path(self) -> None:
+        """Show the config file path."""
+        from vii.config import get_config_path
+
+        config_path = get_config_path()
+        if config_path.exists():
+            self.notify(f"Config: {config_path}")
+        else:
+            self.notify(f"Config (not yet created): {config_path}")
 
 
 def main():
