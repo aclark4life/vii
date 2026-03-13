@@ -128,3 +128,28 @@ jobs:
         uses: pypa/gh-action-pypi-publish@release/v1
         with:
           repository-url: https://test.pypi.org/legacy/
+
+  post-to-twitter:
+    name: Post to Twitter/X
+    needs: [publish-to-pypi]
+    runs-on: ubuntu-latest
+    if: github.event_name == 'release'
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Post to Twitter
+        uses: nearform-actions/github-action-notify-twitter@v1
+        with:
+          message: |
+            🚀 vii ${{ github.event.release.tag_name }} released!
+
+            A terminal file manager with vim-style navigation.
+
+            pip install vii
+
+            ${{ github.event.release.html_url }}
+          twitter-app-key: ${{ secrets.TWITTER_API_KEY }}
+          twitter-app-secret: ${{ secrets.TWITTER_API_SECRET }}
+          twitter-access-token: ${{ secrets.TWITTER_ACCESS_TOKEN }}
+          twitter-access-token-secret: ${{ secrets.TWITTER_ACCESS_TOKEN_SECRET }}
