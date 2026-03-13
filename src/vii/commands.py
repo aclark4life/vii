@@ -109,6 +109,7 @@ class GitCommandProvider(Provider):
             ("Pull", app._git_pull, "Pull from remote"),
             ("Diff Current File", app._git_diff_current, "Show diff for current file"),
             ("Blame Current File", app._git_blame_current, "Show git blame for current file"),
+            ("Delete Current File", app._delete_current_file, "Delete the current file"),
         ]
 
     async def discover(self) -> Hits:

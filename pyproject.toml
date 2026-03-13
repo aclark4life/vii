@@ -12,6 +12,11 @@ license = {text = "MIT"}
 authors = [
     {name = "Jeffrey 'Alex' Clark"},
 ]
+
+[project.urls]
+Homepage = "https://github.com/aclark4life/vii"
+Repository = "https://github.com/aclark4life/vii"
+Issues = "https://github.com/aclark4life/vii/issues"
 dependencies = [
     "textual>=0.50.0",
     "rich>=13.0.0",

@@ -1421,12 +1421,15 @@ class Vii(App):
             self.call_later(scroll_container.stop_animation, "scroll_y")
 
     def action_edit_file(self) -> None:
-        """Open the currently selected file in the editor."""
+        """Open the currently selected file in the editor (or image viewer for images)."""
         tree = self.query_one(DirectoryTree)
         if tree.cursor_node and tree.cursor_node.data:
             path = tree.cursor_node.data.path
             if path.is_file():
-                self._open_in_editor(path)
+                if is_image_file(path):
+                    self._open_in_system_viewer(path)
+                else:
+                    self._open_in_editor(path)
             else:
                 self.notify("Cannot edit a directory", severity="warning")
 
@@ -1507,6 +1510,119 @@ class Vii(App):
             self.notify(f"Opened: {file_path.name}", severity="information")
         except Exception as e:
             self.notify(f"Error opening file: {e}", severity="error")
+
+    def _open_in_system_viewer(self, file_path: Path) -> None:
+        """Open a file with the system's default application (e.g., Preview for images on macOS)."""
+        import sys
+
+        try:
+            if sys.platform == "darwin":
+                # macOS: use 'open' command (opens in Preview for images)
+                cmd = ["open", str(file_path)]
+            elif sys.platform == "win32":
+                # Windows: use 'start' command
+                cmd = ["start", "", str(file_path)]
+            else:
+                # Linux/other: use 'xdg-open'
+                cmd = ["xdg-open", str(file_path)]
+
+            subprocess.Popen(
+                cmd,
+                stdin=subprocess.DEVNULL,
+                stdout=subprocess.DEVNULL,
+                stderr=subprocess.DEVNULL,
+            )
+            self.notify(f"Opened: {file_path.name}", severity="information")
+        except Exception as e:
+            self.notify(f"Error opening file: {e}", severity="error")
+
+    def _delete_current_file(self) -> None:
+        """Delete the currently selected file."""
+        tree = self.query_one(DirectoryTree)
+        if not (tree.cursor_node and tree.cursor_node.data):
+            self.notify("No file selected", severity="warning")
+            return
+
+        path = tree.cursor_node.data.path
+        if not path.is_file():
+            self.notify("Cannot delete a directory", severity="warning")
+            return
+
+        # Confirm deletion
+        from textual.containers import Horizontal
+        from textual.screen import ModalScreen
+        from textual.widgets import Button, Static
+
+        app = self
+        file_path = path
+
+        class ConfirmDeleteScreen(ModalScreen[bool]):
+            """Modal screen for confirming file deletion."""
+
+            BINDINGS = [
+                Binding("enter", "confirm", "Confirm", priority=True),
+                Binding("escape", "cancel", "Cancel", priority=True),
+            ]
+
+            CSS = """
+            ConfirmDeleteScreen {
+                align: center middle;
+            }
+            #dialog {
+                width: 60;
+                height: auto;
+                border: thick $error;
+                background: $surface;
+                padding: 1 2;
+            }
+            #dialog Static {
+                width: 100%;
+                content-align: center middle;
+            }
+            #buttons {
+                width: 100%;
+                height: auto;
+                align: center middle;
+                margin-top: 1;
+            }
+            #buttons Button {
+                margin: 0 1;
+            }
+            """
+
+            def compose(self):
+                with Vertical(id="dialog"):
+                    yield Static(f"Delete file?\n\n[bold]{file_path.name}[/bold]")
+                    with Horizontal(id="buttons"):
+                        yield Button("Delete", variant="error", id="delete")
+                        yield Button("Cancel", variant="primary", id="cancel")
+
+            def on_button_pressed(self, event: Button.Pressed) -> None:
+                if event.button.id == "delete":
+                    self.dismiss(True)
+                else:
+                    self.dismiss(False)
+
+            def action_confirm(self) -> None:
+                self.dismiss(True)
+
+            def action_cancel(self) -> None:
+                self.dismiss(False)
+
+        def handle_delete(confirmed: bool) -> None:
+            if confirmed:
+                try:
+                    file_path.unlink()
+                    app.notify(f"Deleted: {file_path.name}", severity="information")
+                    # Reload the tree to reflect the deletion
+                    app._reload_tree()
+                    # Refresh git status if in a git repo
+                    if app.git_branch:
+                        app._git_refresh()
+                except Exception as e:
+                    app.notify(f"Error deleting file: {e}", severity="error")
+
+        self.push_screen(ConfirmDeleteScreen(), handle_delete)
 
     # Git command implementations
     def _git_status(self) -> None:
