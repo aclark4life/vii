@@ -40,8 +40,7 @@ class Vii(App):
 
     # Reactive variable for sidebar width (in columns)
     sidebar_width: reactive[int] = reactive(30)
-    # Reactive variable for subtitle (git branch info)
-    sub_title: reactive[str] = reactive("")
+    # Note: sub_title is inherited from App and used by Header widget
 
     CSS = """
     Screen {
