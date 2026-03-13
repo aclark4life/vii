@@ -296,7 +296,9 @@ class Vii(App):
     def on_mount(self) -> None:
         """Set initial sidebar width when app mounts."""
         # Apply saved theme (must be done after mount for Textual to apply it)
-        if self._config.theme:
+        if self._config.theme == "random":
+            self._apply_random_theme()
+        elif self._config.theme:
             self.theme = self._config.theme
 
         # Use saved sidebar width or default to 1/3 of screen
@@ -1769,6 +1771,31 @@ class Vii(App):
             self.notify(f"Config saved to {get_config_path()}")
         except Exception as e:
             self.notify(f"Failed to save config: {e}", severity="error")
+
+    def _apply_random_theme(self) -> None:
+        """Apply a random theme without saving to config."""
+        import random
+
+        from vii.content import THEME_MAP
+
+        theme_name = random.choice(list(THEME_MAP.keys()))
+        self.theme = theme_name
+        self.notify(f"Random theme: {theme_name}")
+
+    def _set_random_theme(self) -> None:
+        """Set theme to random mode and apply a random theme."""
+        import random
+
+        from vii.content import THEME_MAP
+
+        # Save "random" to config so it picks a random theme on each startup
+        self._config.theme = "random"
+        self._config.save()
+
+        # Apply a random theme now
+        theme_name = random.choice(list(THEME_MAP.keys()))
+        self.theme = theme_name
+        self.notify(f"Theme set to random (currently: {theme_name})")
 
 
 def main():

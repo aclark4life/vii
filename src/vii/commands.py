@@ -22,6 +22,7 @@ class ConfigCommandProvider(Provider):
         assert isinstance(app, Vii)
 
         return [
+            ("Random Theme", app._set_random_theme, "Use a random theme on each startup"),
             ("Save Config", app._save_config, "Save current settings to config file"),
         ]
 
