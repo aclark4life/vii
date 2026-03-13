@@ -129,12 +129,11 @@ jobs:
         with:
           repository-url: https://test.pypi.org/legacy/
 
-  post-to-twitter:
-    name: Post to Twitter/X
+  post-to-social:
+    name: Post to Social Media
     needs: [publish-to-pypi]
     runs-on: ubuntu-latest
     if: github.event_name == 'release'
-    continue-on-error: true  # Don't fail release if Twitter posting fails
 
     steps:
       - uses: actions/checkout@v4
@@ -155,7 +154,10 @@ jobs:
           echo "EOF" >> $GITHUB_OUTPUT
 
       - name: Post to Twitter
+        if: env.TWITTER_API_KEY != ''
         uses: nearform-actions/github-action-notify-twitter@v1
+        env:
+          TWITTER_API_KEY: ${{ secrets.TWITTER_API_KEY }}
         with:
           message: |
             🚀 vii ${{ github.event.release.tag_name }} released!
@@ -170,7 +172,11 @@ jobs:
           twitter-access-token-secret: ${{ secrets.TWITTER_ACCESS_TOKEN_SECRET }}
 
       - name: Post to Fosstodon
+        if: env.MASTODON_ACCESS_TOKEN != ''
         uses: cbrgm/mastodon-github-action@v2
+        env:
+          MASTODON_URL: "https://fosstodon.org"
+          MASTODON_ACCESS_TOKEN: ${{ secrets.MASTODON_ACCESS_TOKEN }}
         with:
           message: |
             🚀 vii ${{ github.event.release.tag_name }} released!
@@ -182,6 +188,3 @@ jobs:
 
             #Python #CLI #OpenSource #Vim
           visibility: "public"
-        env:
-          MASTODON_URL: "https://fosstodon.org"
-          MASTODON_ACCESS_TOKEN: ${{ secrets.MASTODON_ACCESS_TOKEN }}
