@@ -749,7 +749,6 @@ class Vii(App):
             "j": "down",
             "k": "up",
             "h": "left",
-            "l": "right",
             "g": "home",
             "G": "end",
         }
