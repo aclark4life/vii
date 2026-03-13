@@ -1366,6 +1366,10 @@ class Vii(App):
                 self.git_log_page = page
                 self.git_log_viewing = True
 
+                # Focus the content panel so n/p keys work
+                scroll_container = self.query_one("#content-scroll", ScrollableContainer)
+                scroll_container.focus()
+
                 self.notify(f"Showing git log (page {page + 1})")
             else:
                 if page > 0:
