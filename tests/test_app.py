@@ -292,13 +292,15 @@ class TestConfig:
         config = Config()
         assert config.theme == "textual-dark"
         assert config.sidebar_width is None
+        assert config.animate_scroll is True
 
     def test_config_from_dict(self):
         """Test creating config from a dictionary."""
-        data = {"theme": "monokai", "sidebar_width": 40}
+        data = {"theme": "monokai", "sidebar_width": 40, "animate_scroll": False}
         config = Config.from_dict(data)
         assert config.theme == "monokai"
         assert config.sidebar_width == 40
+        assert config.animate_scroll is False
 
     def test_config_from_dict_partial(self):
         """Test creating config from partial dictionary."""
@@ -315,10 +317,11 @@ class TestConfig:
 
     def test_config_to_dict(self):
         """Test converting config to dictionary."""
-        config = Config(theme="nord", sidebar_width=35)
+        config = Config(theme="nord", sidebar_width=35, animate_scroll=False)
         data = config.to_dict()
         assert data["theme"] == "nord"
         assert data["sidebar_width"] == 35
+        assert data["animate_scroll"] is False
 
     def test_config_to_dict_no_sidebar_width(self):
         """Test that None sidebar_width is excluded from dict."""

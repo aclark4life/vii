@@ -33,6 +33,7 @@ class Config:
 
     theme: str = "textual-dark"
     sidebar_width: int | None = None  # None means auto (1/3 of screen width)
+    animate_scroll: bool = True  # Enable/disable scroll animations
 
     @classmethod
     def load(cls) -> Config:
@@ -68,9 +69,11 @@ class Config:
         # Ensure sidebar_width is int or None
         if sidebar_width is not None:
             sidebar_width = int(sidebar_width)
+        animate_scroll = data.get("animate_scroll", cls.animate_scroll)
         return cls(
             theme=data.get("theme", cls.theme),
             sidebar_width=sidebar_width,
+            animate_scroll=bool(animate_scroll),
         )
 
     def to_dict(self) -> dict[str, Any]:
@@ -81,6 +84,7 @@ class Config:
         """
         result: dict[str, Any] = {
             "theme": self.theme,
+            "animate_scroll": self.animate_scroll,
         }
         if self.sidebar_width is not None:
             result["sidebar_width"] = self.sidebar_width

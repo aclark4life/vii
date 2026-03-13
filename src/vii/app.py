@@ -1289,7 +1289,7 @@ class Vii(App):
         # Add 2 for the header (icon + filename + blank line)
         target_line = match_line + 3
         # Scroll to approximate position
-        scroll_container.scroll_to(y=target_line, animate=True)
+        scroll_container.scroll_to(y=target_line, animate=self._config.animate_scroll)
 
     def _goto_next_match(self) -> None:
         """Go to the next search match."""
