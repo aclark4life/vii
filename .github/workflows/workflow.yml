@@ -169,3 +169,21 @@ jobs:
           twitter-app-secret: ${{ secrets.TWITTER_API_SECRET }}
           twitter-access-token: ${{ secrets.TWITTER_ACCESS_TOKEN }}
           twitter-access-token-secret: ${{ secrets.TWITTER_ACCESS_TOKEN_SECRET }}
+
+      - name: Post to Fosstodon
+        if: ${{ secrets.MASTODON_ACCESS_TOKEN != '' }}
+        uses: cbrgm/mastodon-github-action@v2
+        with:
+          message: |
+            🚀 vii ${{ github.event.release.tag_name }} released!
+
+            ${{ steps.changelog.outputs.content }}
+
+            pip install vii
+            ${{ github.event.release.html_url }}
+
+            #Python #CLI #OpenSource #Vim
+          visibility: "public"
+        env:
+          MASTODON_URL: "https://fosstodon.org"
+          MASTODON_ACCESS_TOKEN: ${{ secrets.MASTODON_ACCESS_TOKEN }}
