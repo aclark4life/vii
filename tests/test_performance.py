@@ -99,15 +99,14 @@ class TestFileReadingPerformance:
 
     def test_large_file_truncation(self, tmp_path: Path) -> None:
         """Test that very large files are truncated for performance."""
-        from vii.app import Vii
+        from vii.content import read_file_content
 
         # Create a file with 3000 lines
         file_path = tmp_path / "huge_file.py"
         lines = [f"print({i})" for i in range(3000)]
         file_path.write_text("\n".join(lines))
 
-        app = Vii()
-        content = app._read_file_content(file_path)
+        content = read_file_content(file_path)
 
         # Should be truncated
         assert "truncated" in content
@@ -124,15 +123,14 @@ class TestFileReadingPerformance:
         from rich.console import Console
         from rich.syntax import Syntax
 
-        from vii.app import Vii
+        from vii.content import read_file_content
 
         # Create a file with 2000 lines (at the limit)
         file_path = tmp_path / "medium_file.py"
         lines = [f"def func_{i}(): return {i}" for i in range(2000)]
         file_path.write_text("\n".join(lines))
 
-        app = Vii()
-        content = app._read_file_content(file_path)
+        content = read_file_content(file_path)
 
         start = time.perf_counter()
         syntax = Syntax(content, "python", theme="monokai", line_numbers=True)
