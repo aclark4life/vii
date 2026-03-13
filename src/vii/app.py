@@ -133,6 +133,9 @@ class Vii(App):
         Binding("u", "page_up", "Page Up"),
         Binding("e", "edit_file", "Edit"),
         Binding("s", "open_shell", "Shell"),
+        # Git bindings
+        Binding("b", "git_blame", "Blame"),
+        Binding("L", "git_log", "Log"),
         # Arrow keys still work but hidden from footer
         Binding("down", "cursor_down", "Down", show=False),
         Binding("up", "cursor_up", "Up", show=False),
@@ -1234,6 +1237,14 @@ class Vii(App):
         else:
             # Fall back to start_path if no node is selected
             self._open_shell(self.start_path)
+
+    def action_git_blame(self) -> None:
+        """Show git blame for the current file."""
+        self._git_blame_current()
+
+    def action_git_log(self) -> None:
+        """Show git log."""
+        self._git_log()
 
     def _open_shell(self, directory: Path) -> None:
         """Open a shell in the specified directory."""
