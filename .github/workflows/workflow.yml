@@ -139,6 +139,21 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      - name: Extract changelog for current version
+        id: changelog
+        run: |
+          # Extract the changelog section for this version
+          VERSION="${{ github.event.release.tag_name }}"
+          VERSION="${VERSION#v}"  # Remove 'v' prefix
+
+          # Get content between this version and the next version header
+          CHANGELOG=$(awk "/^## \[${VERSION}\]/{flag=1; next} /^## \[/{flag=0} flag" CHANGELOG.md | head -20)
+
+          # Escape for GitHub Actions output
+          echo "content<<EOF" >> $GITHUB_OUTPUT
+          echo "$CHANGELOG" >> $GITHUB_OUTPUT
+          echo "EOF" >> $GITHUB_OUTPUT
+
       - name: Post to Twitter
         if: ${{ secrets.TWITTER_API_KEY != '' }}
         uses: nearform-actions/github-action-notify-twitter@v1
@@ -146,10 +161,9 @@ jobs:
           message: |
             🚀 vii ${{ github.event.release.tag_name }} released!
 
-            A terminal file manager with vim-style navigation.
+            ${{ steps.changelog.outputs.content }}
 
             pip install vii
-
             ${{ github.event.release.html_url }}
           twitter-app-key: ${{ secrets.TWITTER_API_KEY }}
           twitter-app-secret: ${{ secrets.TWITTER_API_SECRET }}
