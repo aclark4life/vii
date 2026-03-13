@@ -126,7 +126,6 @@ class Vii(App):
         Binding("j", "cursor_down", "Down"),
         Binding("k", "cursor_up", "Up"),
         Binding("h", "cursor_left", "Collapse"),
-        Binding("l", "cursor_right", "Expand"),
         Binding("g", "scroll_home", "Top"),
         Binding("G", "scroll_end", "Bottom"),
         Binding("d", "page_down", "Page Down"),
@@ -135,7 +134,7 @@ class Vii(App):
         Binding("s", "open_shell", "Shell"),
         # Git bindings
         Binding("b", "git_blame", "Blame"),
-        Binding("L", "git_log", "Log"),
+        Binding("l", "git_log", "Log"),
         # Arrow keys still work but hidden from footer
         Binding("down", "cursor_down", "Down", show=False),
         Binding("up", "cursor_up", "Up", show=False),
