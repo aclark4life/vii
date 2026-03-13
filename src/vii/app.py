@@ -134,7 +134,6 @@ class Vii(App):
         Binding("s", "open_shell", "Shell"),
         # Git bindings
         Binding("b", "git_blame", "Blame"),
-        Binding("l", "git_log", "Log"),
         # Arrow keys still work but hidden from footer
         Binding("down", "cursor_down", "Down", show=False),
         Binding("up", "cursor_up", "Up", show=False),
@@ -749,6 +748,7 @@ class Vii(App):
             "j": "down",
             "k": "up",
             "h": "left",
+            "l": "right",
             "g": "home",
             "G": "end",
         }
@@ -770,7 +770,10 @@ class Vii(App):
                     scroll_container.scroll_home()
                 elif action_key == "end":
                     scroll_container.scroll_end()
-                # h/l do nothing in content panel
+                elif action_key == "right":
+                    # l shows git log in content panel
+                    self._git_log()
+                # h does nothing in content panel
             else:
                 # Control the directory tree
                 if action_key == "down":
