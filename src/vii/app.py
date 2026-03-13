@@ -558,6 +558,13 @@ class Vii(App):
 
             path = tree.cursor_node.data.path
 
+            # Check if we've entered a different git repo (or left one)
+            current_dir = path.parent if path.is_file() else path
+            new_git_root = get_git_root(current_dir)
+            if new_git_root != self.git_root:
+                # Git repo changed - update git info
+                self._update_git_info(current_dir)
+
             # Skip if already displaying this path
             if path == self._displayed_path:
                 return
