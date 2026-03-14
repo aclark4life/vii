@@ -1347,13 +1347,12 @@ class Vii(GitHandlersMixin, App):
                 self._navigate_to_path(clicked_path)
             else:
                 # Switch focus back to sidebar
-                tree = self.query_one(DirectoryTree)
-                tree.focus()
+                if tree:
+                    tree.focus()
         elif not content_focused and event.key == "enter":
             # In sidebar: toggle directory or switch to content panel
             event.prevent_default()
-            tree = self.query_one(DirectoryTree)
-            if tree.cursor_node and tree.cursor_node.data:
+            if tree and tree.cursor_node and tree.cursor_node.data:
                 path = tree.cursor_node.data.path
                 if path.is_dir():
                     # Toggle directory expansion
