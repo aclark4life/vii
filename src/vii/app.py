@@ -2004,6 +2004,7 @@ class Vii(App):
             show_output = get_git_show(self.git_root, commit_hash)
 
             if show_output:
+                from rich.console import Group
                 from rich.syntax import Syntax
                 from rich.text import Text
 
@@ -2014,15 +2015,13 @@ class Vii(App):
                 # Try to syntax highlight the diff portion
                 content_display = self.query_one("#content-display", Static)
 
-                # Use diff syntax highlighting for the output
+                # Use diff syntax highlighting with theme matching content panel
                 syntax = Syntax(
                     show_output,
                     "diff",
-                    theme="monokai",
+                    theme=get_syntax_theme(self.theme),
                     line_numbers=False,
                 )
-
-                from rich.console import Group
 
                 content_display.update(Group(text, syntax))
 
