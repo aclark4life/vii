@@ -796,8 +796,11 @@ class Vii(GitHandlersMixin, App):
         self.git_log_page = 0
 
         try:
-            tree = self.query_one(DirectoryTree)
-            if not tree.cursor_node or not tree.cursor_node.data:
+            tree_results = self.query(DirectoryTree)
+            if not tree_results:
+                return
+            tree = tree_results.first()
+            if not tree or not tree.cursor_node or not tree.cursor_node.data:
                 return
 
             path = tree.cursor_node.data.path
@@ -813,8 +816,14 @@ class Vii(GitHandlersMixin, App):
             if path == self._displayed_path:
                 return
 
-            content_display = self.query_one("#content-display", Static)
-            scroll_container = self.query_one("#content-scroll", ScrollableContainer)
+            content_results = self.query("#content-display")
+            scroll_results = self.query("#content-scroll")
+            if not content_results or not scroll_results:
+                return
+            content_display = content_results.first()
+            scroll_container = scroll_results.first()
+            if not content_display or not scroll_container:
+                return
 
             if path.is_dir():
                 self._dir_listing_highlighted = 0 if path.iterdir() else -1
@@ -989,11 +998,22 @@ class Vii(GitHandlersMixin, App):
     def _update_content_display(self) -> None:
         """Update the content display synchronously (for non-navigation updates)."""
         try:
-            tree = self.query_one(DirectoryTree)
+            tree_results = self.query(DirectoryTree)
+            content_results = self.query("#content-display")
+            scroll_results = self.query("#content-scroll")
+
+            if not tree_results or not content_results or not scroll_results:
+                return
+
+            tree = tree_results.first()
+            content_display = content_results.first()
+            scroll_container = scroll_results.first()
+
+            if not tree or not content_display or not scroll_container:
+                return
+
             if tree.cursor_node and tree.cursor_node.data:
                 path = tree.cursor_node.data.path
-                content_display = self.query_one("#content-display", Static)
-                scroll_container = self.query_one("#content-scroll", ScrollableContainer)
 
                 if path.is_dir():
                     self._dir_listing_highlighted = 0 if list(path.iterdir()) else -1
