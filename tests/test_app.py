@@ -201,15 +201,22 @@ class TestVii:
     async def test_compose(self, tmp_path):
         """Test UI composition."""
         app = Vii(start_path=tmp_path)
-        async with app.run_test():
+        async with app.run_test() as pilot:
+            await pilot.pause()  # Allow widgets to mount
             # Check that the directory tree is present
-            tree = app._get_tree()
+            # Walk through all descendants to find the DirectoryTree
+            tree = None
+            for widget in app.walk_children():
+                if isinstance(widget, DirectoryTree):
+                    tree = widget
+                    break
             assert tree is not None
 
             # Check that the static info text is present
             from textual.widgets import Static
 
-            statics = app.query(Static)
+            # Walk through all descendants to find Static widgets
+            statics = [w for w in app.walk_children() if isinstance(w, Static)]
             # Should have at least one Static widget with our info text
             assert len(statics) > 0
             # Find the one with our text (looking for the navigation hint text)
@@ -229,8 +236,13 @@ class TestVii:
         app = Vii(start_path=tmp_path)
 
         async with app.run_test() as pilot:
-            # Simulate file selection
-            tree = app._get_tree()
+            await pilot.pause()  # Allow widgets to mount
+            # Simulate file selection - walk children to find tree
+            tree = None
+            for widget in app.walk_children():
+                if isinstance(widget, DirectoryTree):
+                    tree = widget
+                    break
             assert tree is not None
             event = DirectoryTree.FileSelected(tree, test_file)
             app.on_directory_tree_file_selected(event)

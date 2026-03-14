@@ -260,23 +260,61 @@ class Vii(GitHandlersMixin, App):
 
     def _get_tree(self) -> DirectoryTree | None:
         """Get the directory tree widget (query_one with type can return None)."""
-        for widget in self.query("*"):
-            if isinstance(widget, DirectoryTree):
-                return widget
+        try:
+            # Try query_one first (works in some Textual versions)
+            result = self.query_one(DirectoryTree)
+            if result is not None:
+                return result
+        except Exception:
+            pass
+        try:
+            # Fallback: iterate widgets
+            widgets = self.query("*")
+            if widgets is None:
+                return None
+            for widget in widgets:
+                if isinstance(widget, DirectoryTree):
+                    return widget
+        except Exception:
+            pass
         return None
 
     def _get_scroll_container(self) -> ScrollableContainer | None:
         """Get the content scroll container widget."""
-        for widget in self.query("*"):
-            if widget.id == "content-scroll":
-                return widget
+        try:
+            result = self.query_one("#content-scroll", ScrollableContainer)
+            if result is not None:
+                return result
+        except Exception:
+            pass
+        try:
+            widgets = self.query("*")
+            if widgets is None:
+                return None
+            for widget in widgets:
+                if widget.id == "content-scroll":
+                    return widget
+        except Exception:
+            pass
         return None
 
     def _get_content_display(self) -> Static | None:
         """Get the content display widget."""
-        for widget in self.query("*"):
-            if widget.id == "content-display":
-                return widget
+        try:
+            result = self.query_one("#content-display", Static)
+            if result is not None:
+                return result
+        except Exception:
+            pass
+        try:
+            widgets = self.query("*")
+            if widgets is None:
+                return None
+            for widget in widgets:
+                if widget.id == "content-display":
+                    return widget
+        except Exception:
+            pass
         return None
 
     def _detect_editor(self) -> list[str]:
