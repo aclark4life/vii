@@ -95,6 +95,11 @@ class VerticalSplitter(Widget):
         background: $accent;
         pointer: ew-resize;
     }
+
+    VerticalSplitter.-active {
+        background: $accent;
+        pointer: ew-resize;
+    }
     """
 
     is_dragging: reactive[bool] = reactive(False)
@@ -107,12 +112,21 @@ class VerticalSplitter(Widget):
         """Render the splitter."""
         return "┃"
 
+    def on_click(self, event: events.Click) -> None:
+        """Toggle active state on click."""
+        if self.has_class("-active"):
+            self.remove_class("-active")
+        else:
+            self.add_class("-active")
+        event.stop()
+
     def on_mouse_down(self, event: events.MouseDown) -> None:
         """Start dragging when mouse is pressed."""
         self.is_dragging = True
         self._drag_start_x = event.screen_x
         self.capture_mouse()
         self.add_class("-dragging")
+        self.add_class("-active")  # Keep visible after drag
         event.stop()
 
     def on_mouse_up(self, event: events.MouseUp) -> None:
