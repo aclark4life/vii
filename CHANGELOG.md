@@ -5,7 +5,7 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased]
+## [0.1.0a5] - 2026-03-14
 
 ### Added
 - Image preview in content panel (PNG, JPG, GIF, BMP, WebP, ICO, TIFF)
@@ -32,7 +32,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Double-click on file in sidebar to open in editor (same as `e` key)
 - Notification limit: max 3 notifications visible, oldest removed when exceeded
 
+### Changed
+- Splitter shows white background while dragging for better visual feedback
+- Refactored key handling into separate mixin module for maintainability
+
 ### Fixed
+- Command palette now opens correctly with `ctrl+p` (Textual 8.x compatibility)
 - j/k navigation in left sidebar now works correctly (Textual 8.x compatibility)
 - Panel resizing via splitter drag now works correctly (Textual 8.x compatibility)
 - Content panel now loads file content when navigating (Textual 8.x compatibility)
@@ -137,7 +142,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Pre-commit hooks for code quality with ruff (replaced black, flake8, and isort)
 - Comprehensive test suite
 
-[Unreleased]: https://github.com/aclark4life/vii/compare/v0.1.0a4...HEAD
+[Unreleased]: https://github.com/aclark4life/vii/compare/v0.1.0a5...HEAD
+[0.1.0a5]: https://github.com/aclark4life/vii/compare/v0.1.0a4...v0.1.0a5
 [0.1.0a4]: https://github.com/aclark4life/vii/compare/v0.1.0a3...v0.1.0a4
 [0.1.0a3]: https://github.com/aclark4life/vii/compare/v0.1.0a2...v0.1.0a3
 [0.1.0a2]: https://github.com/aclark4life/vii/compare/v0.1.0a1...v0.1.0a2
