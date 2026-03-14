@@ -1685,8 +1685,11 @@ class Vii(GitHandlersMixin, App):
         # Update content display but keep focus in the sidebar (debounced for rapid navigation)
         # Note: git info is NOT updated here - it's expensive and doesn't change from file selection
         self._schedule_content_update()
-        tree = self.query_one(DirectoryTree)
-        tree.focus()
+        tree_results = self.query(DirectoryTree)
+        if tree_results:
+            tree = tree_results.first()
+            if tree:
+                tree.focus()
 
     def on_directory_tree_directory_selected(self, event: DirectoryTree.DirectorySelected) -> None:
         """Handle directory selection from the directory tree."""
@@ -1696,8 +1699,18 @@ class Vii(GitHandlersMixin, App):
     def on_click(self, event: events.Click) -> None:
         """Handle mouse clicks to stop scroll animations and highlight blame lines."""
         # Check if the click is in the content scroll container
-        scroll_container = self.query_one("#content-scroll", ScrollableContainer)
-        tree = self.query_one(DirectoryTree)
+        scroll_results = self.query("#content-scroll")
+        tree_results = self.query(DirectoryTree)
+
+        if not scroll_results or not tree_results:
+            return
+
+        scroll_container = scroll_results.first()
+        tree = tree_results.first()
+
+        if not scroll_container or not tree:
+            return
+
         widget_at_click, _ = self.get_widget_at(event.screen_x, event.screen_y)
 
         # Handle clicks on directory tree
