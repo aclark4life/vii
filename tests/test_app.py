@@ -203,7 +203,7 @@ class TestVii:
         app = Vii(start_path=tmp_path)
         async with app.run_test():
             # Check that the directory tree is present
-            tree = app.query_one(DirectoryTree)
+            tree = app._get_tree()
             assert tree is not None
 
             # Check that the static info text is present
@@ -230,7 +230,8 @@ class TestVii:
 
         async with app.run_test() as pilot:
             # Simulate file selection
-            tree = app.query_one(DirectoryTree)
+            tree = app._get_tree()
+            assert tree is not None
             event = DirectoryTree.FileSelected(tree, test_file)
             app.on_directory_tree_file_selected(event)
 

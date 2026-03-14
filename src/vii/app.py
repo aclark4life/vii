@@ -258,6 +258,27 @@ class Vii(GitHandlersMixin, App):
         except Exception:
             pass  # Widget may not be mounted yet
 
+    def _get_tree(self) -> DirectoryTree | None:
+        """Get the directory tree widget (query_one with type can return None)."""
+        for widget in self.query("*"):
+            if isinstance(widget, DirectoryTree):
+                return widget
+        return None
+
+    def _get_scroll_container(self) -> ScrollableContainer | None:
+        """Get the content scroll container widget."""
+        for widget in self.query("*"):
+            if widget.id == "content-scroll":
+                return widget
+        return None
+
+    def _get_content_display(self) -> Static | None:
+        """Get the content display widget."""
+        for widget in self.query("*"):
+            if widget.id == "content-display":
+                return widget
+        return None
+
     def _detect_editor(self) -> list[str]:
         """Detect the user's preferred editor."""
         # Check common environment variables
@@ -366,8 +387,8 @@ class Vii(GitHandlersMixin, App):
     def _get_current_directory(self) -> Path:
         """Get the current directory based on the tree cursor position."""
         try:
-            tree = self.query_one(DirectoryTree)
-            if tree.cursor_node and tree.cursor_node.data:
+            tree = self._get_tree()
+            if tree and tree.cursor_node and tree.cursor_node.data:
                 path = tree.cursor_node.data.path
                 # If it's a file, get its parent directory
                 if path.is_file():
@@ -469,8 +490,9 @@ class Vii(GitHandlersMixin, App):
         """Navigate to a different directory by reloading the tree."""
         try:
             # Remove the old tree
-            old_tree = self.query_one(DirectoryTree)
-            old_tree.remove()
+            old_tree = self._get_tree()
+            if old_tree:
+                old_tree.remove()
 
             # Update the start path
             self.start_path = directory
@@ -495,7 +517,9 @@ class Vii(GitHandlersMixin, App):
         """Reload the directory tree to reflect file system changes."""
         try:
             # Save the current cursor position and expanded nodes
-            old_tree = self.query_one(DirectoryTree)
+            old_tree = self._get_tree()
+            if not old_tree:
+                return
             cursor_path = None
             if old_tree.cursor_node and old_tree.cursor_node.data:
                 cursor_path = old_tree.cursor_node.data.path
@@ -648,8 +672,8 @@ class Vii(GitHandlersMixin, App):
             Rich Text object with formatted directory listing.
         """
         # Get terminal width to pad highlighted lines
-        scroll_container = self.query_one("#content-scroll", ScrollableContainer)
-        width = max(scroll_container.size.width - 4, 80)
+        scroll_container = self._get_scroll_container()
+        width = max(scroll_container.size.width - 4, 80) if scroll_container else 80
 
         text = Text()
         text.append(f"📁 {path.name}/\n\n", style="bold")
@@ -733,17 +757,20 @@ class Vii(GitHandlersMixin, App):
         if not self._displayed_path or not self._displayed_path.is_dir():
             return
 
-        content_display = self.query_one("#content-display", Static)
-        content_display.update(
-            self._render_directory_listing(self._displayed_path, self._dir_listing_highlighted)
-        )
+        content_display = self._get_content_display()
+        if content_display:
+            content_display.update(
+                self._render_directory_listing(self._displayed_path, self._dir_listing_highlighted)
+            )
 
     def _scroll_to_dir_entry(self) -> None:
         """Scroll to keep the highlighted directory entry visible."""
         if self._dir_listing_highlighted < 0 or not self._dir_listing_entries:
             return
 
-        scroll_container = self.query_one("#content-scroll", ScrollableContainer)
+        scroll_container = self._get_scroll_container()
+        if not scroll_container:
+            return
 
         # Add 2 for the header lines (title + empty line)
         target_y = self._dir_listing_highlighted + 2
@@ -962,8 +989,8 @@ class Vii(GitHandlersMixin, App):
                 self._rendered_cache[path] = (content, rendered_content)
 
                 # Verify we're still on the same file (user may have navigated away)
-                tree = self.query_one(DirectoryTree)
-                if not (tree.cursor_node and tree.cursor_node.data):
+                tree = self._get_tree()
+                if not tree or not (tree.cursor_node and tree.cursor_node.data):
                     return
                 current_path = tree.cursor_node.data.path
                 if current_path != path:
@@ -983,17 +1010,19 @@ class Vii(GitHandlersMixin, App):
                 self.git_log_page = 0
 
                 # Update display - content is already rendered, just swap it in
-                content_display = self.query_one("#content-display", Static)
-                scroll_container = self.query_one("#content-scroll", ScrollableContainer)
+                content_display = self._get_content_display()
+                scroll_container = self._get_scroll_container()
 
-                if rendered_content is not None:
-                    content_display.update(rendered_content)
-                else:
-                    # Plain text display
-                    content_display.update(f"[bold]📄 {path.name}[/bold]\n\n{content}")
+                if content_display:
+                    if rendered_content is not None:
+                        content_display.update(rendered_content)
+                    else:
+                        # Plain text display
+                        content_display.update(f"[bold]📄 {path.name}[/bold]\n\n{content}")
 
                 # Reset scroll position
-                scroll_container.scroll_home(animate=False)
+                if scroll_container:
+                    scroll_container.scroll_home(animate=False)
                 self._displayed_path = path
             except Exception:
                 pass
@@ -1200,7 +1229,8 @@ class Vii(GitHandlersMixin, App):
                     self.action_git_log()
                 elif action_key == "left":
                     # h scrolls left in content panel
-                    scroll_container.action_scroll_left()
+                    if scroll_container.allow_horizontal_scroll:
+                        scroll_container.scroll_left()
             else:
                 # Control the directory tree
                 if action_key == "down":
@@ -1271,9 +1301,11 @@ class Vii(GitHandlersMixin, App):
                     else:
                         scroll_container.scroll_up()
                 elif event.key == "left":
-                    scroll_container.action_scroll_left()
+                    if scroll_container.allow_horizontal_scroll:
+                        scroll_container.scroll_left()
                 elif event.key == "right":
-                    scroll_container.action_scroll_right()
+                    if scroll_container.allow_horizontal_scroll:
+                        scroll_container.scroll_right()
             else:
                 # Arrow keys are handled by the tree widget, but we still need to update display
                 # Use call_after_refresh to ensure the tree has processed the key first
@@ -1352,11 +1384,13 @@ class Vii(GitHandlersMixin, App):
         elif content_focused and event.key == "H":
             # Scroll left (horizontal)
             event.prevent_default()
-            scroll_container.action_scroll_left()
+            if scroll_container.allow_horizontal_scroll:
+                scroll_container.scroll_left()
         elif content_focused and event.key == "L":
             # Scroll right (horizontal)
             event.prevent_default()
-            scroll_container.action_scroll_right()
+            if scroll_container.allow_horizontal_scroll:
+                scroll_container.scroll_right()
         elif content_focused and event.key == "enter":
             event.prevent_default()
             if self.git_log_viewing and not self.git_commit_viewing:
@@ -1422,8 +1456,9 @@ class Vii(GitHandlersMixin, App):
         """Hide the content search input."""
         search_container = self.query_one("#content-search-container")
         search_container.remove_class("visible")
-        scroll_container = self.query_one("#content-scroll", ScrollableContainer)
-        scroll_container.focus()
+        scroll_container = self._get_scroll_container()
+        if scroll_container:
+            scroll_container.focus()
         if clear_highlights:
             self._clear_search_highlights()
 
@@ -1439,7 +1474,7 @@ class Vii(GitHandlersMixin, App):
         """Hide the sidebar search input."""
         search_container = self.query_one("#sidebar-search-container")
         search_container.remove_class("visible")
-        tree = self.query_one(DirectoryTree)
+        tree = self._get_tree()
         tree.focus()
 
     def _perform_sidebar_search(self, query: str) -> None:
@@ -1450,7 +1485,7 @@ class Vii(GitHandlersMixin, App):
             return
 
         self.sidebar_search_query = query
-        tree = self.query_one(DirectoryTree)
+        tree = self._get_tree()
 
         # Find all nodes matching the query
         self.sidebar_search_matches = []
@@ -1481,7 +1516,7 @@ class Vii(GitHandlersMixin, App):
             return
 
         node = self.sidebar_search_matches[index]
-        tree = self.query_one(DirectoryTree)
+        tree = self._get_tree()
 
         # Expand parent nodes to make the match visible
         parent = node.parent
@@ -1526,30 +1561,31 @@ class Vii(GitHandlersMixin, App):
     def _clear_search_highlights(self) -> None:
         """Remove search highlighting from content and restore original display."""
         if self.original_content:
-            content_display = self.query_one("#content-display", Static)
-            tree = self.query_one(DirectoryTree)
-            if tree.cursor_node and tree.cursor_node.data:
+            content_display = self._get_content_display()
+            tree = self._get_tree()
+            if tree and tree.cursor_node and tree.cursor_node.data:
                 path = tree.cursor_node.data.path
                 if path.is_file():
                     content = self.original_content
                     # Check if we can syntax highlight
                     lexer = get_syntax_lexer(path)
-                    if lexer and not content.startswith("[dim]"):
-                        # Use syntax highlighting with theme-aware color scheme
-                        syntax = Syntax(
-                            content,
-                            lexer,
-                            theme=get_syntax_theme(self.theme),
-                            line_numbers=True,
-                        )
-                        # Combine header and syntax
-                        header = Text(f"📄 {path.name}\n\n", style="bold")
-                        content_display.update(Group(header, syntax))
-                    else:
-                        # Plain text display
-                        content_display.update(
-                            f"[bold]📄 {path.name}[/bold]\n\n{self.original_content}"
-                        )
+                    if content_display:
+                        if lexer and not content.startswith("[dim]"):
+                            # Use syntax highlighting with theme-aware color scheme
+                            syntax = Syntax(
+                                content,
+                                lexer,
+                                theme=get_syntax_theme(self.theme),
+                                line_numbers=True,
+                            )
+                            # Combine header and syntax
+                            header = Text(f"📄 {path.name}\n\n", style="bold")
+                            content_display.update(Group(header, syntax))
+                        else:
+                            # Plain text display
+                            content_display.update(
+                                f"[bold]📄 {path.name}[/bold]\n\n{self.original_content}"
+                            )
 
     def _perform_search(self, query: str) -> None:
         """Perform search and highlight matches."""
@@ -1560,8 +1596,8 @@ class Vii(GitHandlersMixin, App):
             return
 
         self.search_query = query
-        tree = self.query_one(DirectoryTree)
-        if not (tree.cursor_node and tree.cursor_node.data):
+        tree = self._get_tree()
+        if not tree or not (tree.cursor_node and tree.cursor_node.data):
             return
 
         path = tree.cursor_node.data.path
@@ -1597,7 +1633,7 @@ class Vii(GitHandlersMixin, App):
         if not self.search_query or not self.original_content:
             return
 
-        tree = self.query_one(DirectoryTree)
+        tree = self._get_tree()
         if not (tree.cursor_node and tree.cursor_node.data):
             return
 
@@ -1643,7 +1679,7 @@ class Vii(GitHandlersMixin, App):
             if line_num < len(lines):
                 text.append("\n")
 
-        content_display = self.query_one("#content-display", Static)
+        content_display = self._get_content_display()
         content_display.update(text)
 
     def _scroll_to_current_match(self) -> None:
@@ -1651,7 +1687,9 @@ class Vii(GitHandlersMixin, App):
         if not self.search_matches or self.current_match_index < 0:
             return
 
-        scroll_container = self.query_one("#content-scroll", ScrollableContainer)
+        scroll_container = self._get_scroll_container()
+        if not scroll_container:
+            return
 
         # Estimate line height and scroll to match
         match_line = self.search_matches[self.current_match_index]
@@ -1695,13 +1733,15 @@ class Vii(GitHandlersMixin, App):
 
     def action_page_up(self) -> None:
         """Scroll the content panel up by one page."""
-        scroll_container = self.query_one("#content-scroll", ScrollableContainer)
-        scroll_container.scroll_page_up()
+        scroll_container = self._get_scroll_container()
+        if scroll_container:
+            scroll_container.scroll_page_up()
 
     def action_page_down(self) -> None:
         """Scroll the content panel down by one page."""
-        scroll_container = self.query_one("#content-scroll", ScrollableContainer)
-        scroll_container.scroll_page_down()
+        scroll_container = self._get_scroll_container()
+        if scroll_container:
+            scroll_container.scroll_page_down()
 
     def on_directory_tree_file_selected(self, event: DirectoryTree.FileSelected) -> None:
         """Handle file selection from the directory tree - keep focus in sidebar."""
@@ -1821,7 +1861,7 @@ class Vii(GitHandlersMixin, App):
 
     def _navigate_to_path(self, path: Path) -> None:
         """Navigate to a specific path in the directory tree and update content."""
-        tree = self.query_one(DirectoryTree)
+        tree = self._get_tree()
 
         # Find and select the node for this path
         def find_node(node, target_path: Path):
@@ -1862,7 +1902,7 @@ class Vii(GitHandlersMixin, App):
 
     def action_edit_file(self) -> None:
         """Open the currently selected file in the editor (or image viewer for images)."""
-        tree = self.query_one(DirectoryTree)
+        tree = self._get_tree()
         if tree.cursor_node and tree.cursor_node.data:
             path = tree.cursor_node.data.path
             if path.is_file():
@@ -1875,7 +1915,7 @@ class Vii(GitHandlersMixin, App):
 
     def action_open_shell(self) -> None:
         """Open a shell in the current working directory."""
-        tree = self.query_one(DirectoryTree)
+        tree = self._get_tree()
         if tree.cursor_node and tree.cursor_node.data:
             path = tree.cursor_node.data.path
             # If it's a file, use its parent directory
@@ -1894,7 +1934,7 @@ class Vii(GitHandlersMixin, App):
             self.git_blame_highlighted_line = -1
             self._update_content_display()
             # Get the current file name for the notification
-            tree = self.query_one(DirectoryTree)
+            tree = self._get_tree()
             if tree.cursor_node and tree.cursor_node.data:
                 path = tree.cursor_node.data.path
                 self.notify(f"Hiding blame for {path.name}")
@@ -2002,7 +2042,7 @@ class Vii(GitHandlersMixin, App):
 
     def _delete_current_file(self) -> None:
         """Delete the currently selected file."""
-        tree = self.query_one(DirectoryTree)
+        tree = self._get_tree()
         if not (tree.cursor_node and tree.cursor_node.data):
             self.notify("No file selected", severity="warning")
             return

@@ -8,8 +8,6 @@ from rich.console import Group
 from rich.syntax import Syntax
 from rich.text import Text
 from textual.command import Hits
-from textual.containers import ScrollableContainer
-from textual.widgets import DirectoryTree, Static
 
 from vii.content import get_syntax_theme
 
@@ -63,11 +61,15 @@ class GitHandlersMixin:
         timeout: float | None = None,
     ) -> None: ...
     def query_one(self, selector: Any, widget_type: type | None = None) -> Any: ...
+    def query(self, selector: Any) -> Any: ...
     def push_screen(self, screen: "Screen", callback: Any = None) -> None: ...
     def _get_current_directory(self) -> Path: ...
     def _update_git_info(self, path: Path | None = None) -> None: ...
     def _update_header(self) -> None: ...
     def _reload_tree(self) -> None: ...
+    def _get_tree(self) -> Any: ...
+    def _get_scroll_container(self) -> Any: ...
+    def _get_content_display(self) -> Any: ...
 
     def _git_status(self) -> None:
         """Show git status."""
@@ -127,7 +129,7 @@ class GitHandlersMixin:
                 self._render_log_with_highlight()
 
                 # Focus the content panel so n/p keys work
-                scroll_container = self.query_one("#content-scroll", ScrollableContainer)
+                scroll_container = self._get_scroll_container()
                 if scroll_container:
                     scroll_container.focus()
 
@@ -195,8 +197,8 @@ class GitHandlersMixin:
         text.append(f"📜 Git Log (Page {self.git_log_page + 1})\n\n", style="bold")
 
         # Get terminal width to pad highlighted lines
-        scroll_container = self.query_one("#content-scroll", ScrollableContainer)
-        width = max(scroll_container.size.width - 4, 80)
+        scroll_container = self._get_scroll_container()
+        width = max(scroll_container.size.width - 4, 80) if scroll_container else 80
 
         # Get highlighted entry boundaries
         highlight_start = -1
@@ -227,8 +229,9 @@ class GitHandlersMixin:
         text.append("ESC", style="bold cyan")
         text.append(" = Close", style="dim")
 
-        content_display = self.query_one("#content-display", Static)
-        content_display.update(text)
+        content_display = self._get_content_display()
+        if content_display:
+            content_display.update(text)
 
     def _scroll_to_log_entry(self) -> None:
         """Scroll to keep the highlighted log entry visible."""
@@ -236,7 +239,9 @@ class GitHandlersMixin:
             return
 
         entry_start, _ = self.git_log_entries[self.git_log_highlighted_entry]
-        scroll_container = self.query_one("#content-scroll", ScrollableContainer)
+        scroll_container = self._get_scroll_container()
+        if not scroll_container:
+            return
 
         # Add 2 for the header lines (title + empty line)
         target_y = entry_start + 2
@@ -299,7 +304,9 @@ class GitHandlersMixin:
                 text.append(f"📋 Commit: {commit_hash}\n\n", style="bold")
 
                 # Try to syntax highlight the diff portion
-                content_display = self.query_one("#content-display", Static)
+                content_display = self._get_content_display()
+                if not content_display:
+                    return
 
                 # Use diff syntax highlighting with theme matching content panel
                 syntax = Syntax(
@@ -316,8 +323,9 @@ class GitHandlersMixin:
                 self.git_commit_hash = commit_hash
 
                 # Scroll to top
-                scroll_container = self.query_one("#content-scroll", ScrollableContainer)
-                scroll_container.scroll_home(animate=False)
+                scroll_container = self._get_scroll_container()
+                if scroll_container:
+                    scroll_container.scroll_home(animate=False)
 
                 self.notify(f"Showing commit {commit_hash}")
             else:
@@ -331,8 +339,8 @@ class GitHandlersMixin:
             self.notify("Not in a git repository", severity="warning")
             return
 
-        tree = self.query_one(DirectoryTree)
-        if not (tree.cursor_node and tree.cursor_node.data):
+        tree = self._get_tree()
+        if not tree or not (tree.cursor_node and tree.cursor_node.data):
             self.notify("No file selected", severity="warning")
             return
 
@@ -442,8 +450,8 @@ class GitHandlersMixin:
             self.notify("Not in a git repository", severity="warning")
             return
 
-        tree = self.query_one(DirectoryTree)
-        if not (tree.cursor_node and tree.cursor_node.data):
+        tree = self._get_tree()
+        if not tree or not (tree.cursor_node and tree.cursor_node.data):
             self.notify("No file selected", severity="warning")
             return
 
@@ -463,8 +471,9 @@ class GitHandlersMixin:
             )
             if result.stdout:
                 # Display diff in content panel
-                content_display = self.query_one("#content-display", Static)
-                content_display.update(f"[bold]Git Diff: {path.name}[/bold]\n\n{result.stdout}")
+                content_display = self._get_content_display()
+                if content_display:
+                    content_display.update(f"[bold]Git Diff: {path.name}[/bold]\n\n{result.stdout}")
                 self.notify(f"Showing diff for {path.name}")
             else:
                 self.notify("No changes to show", severity="information")
@@ -477,8 +486,8 @@ class GitHandlersMixin:
             self.notify("Not in a git repository", severity="warning")
             return
 
-        tree = self.query_one(DirectoryTree)
-        if not (tree.cursor_node and tree.cursor_node.data):
+        tree = self._get_tree()
+        if not tree or not (tree.cursor_node and tree.cursor_node.data):
             self.notify("No file selected", severity="warning")
             return
 
@@ -505,7 +514,7 @@ class GitHandlersMixin:
                 self.git_blame_viewing = True
 
                 # Focus the content panel
-                scroll_container = self.query_one("#content-scroll", ScrollableContainer)
+                scroll_container = self._get_scroll_container()
                 if scroll_container:
                     scroll_container.focus()
 
@@ -524,8 +533,8 @@ class GitHandlersMixin:
         text = Text()
 
         # Get terminal width to pad lines
-        scroll_container = self.query_one("#content-scroll", ScrollableContainer)
-        width = max(scroll_container.size.width - 4, 80)  # -4 for padding, min 80
+        scroll_container = self._get_scroll_container()
+        width = max(scroll_container.size.width - 4, 80) if scroll_container else 80
 
         for i, line in enumerate(lines):
             if i == self.git_blame_highlighted_line:
@@ -535,15 +544,18 @@ class GitHandlersMixin:
             else:
                 text.append(line + "\n")
 
-        content_display = self.query_one("#content-display", Static)
-        content_display.update(text)
+        content_display = self._get_content_display()
+        if content_display:
+            content_display.update(text)
 
     def _scroll_to_blame_line(self) -> None:
         """Scroll to keep the highlighted blame line visible."""
         if self.git_blame_highlighted_line < 0:
             return
 
-        scroll_container = self.query_one("#content-scroll", ScrollableContainer)
+        scroll_container = self._get_scroll_container()
+        if not scroll_container:
+            return
         # Each line is roughly 1 unit of scroll height
         # Add 1 for padding at top
         target_y = self.git_blame_highlighted_line + 1
