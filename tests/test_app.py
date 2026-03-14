@@ -203,29 +203,30 @@ class TestVii:
         app = Vii(start_path=tmp_path)
         async with app.run_test() as pilot:
             await pilot.pause()  # Allow widgets to mount
+            await pilot.pause()  # Extra pause for CI environments
+
             # Check that the directory tree is present
-            # Walk through all descendants to find the DirectoryTree
             tree = None
             for widget in app.walk_children():
                 if isinstance(widget, DirectoryTree):
                     tree = widget
                     break
-            assert tree is not None
+            assert tree is not None, "DirectoryTree widget should be present"
 
-            # Check that the static info text is present
+            # Check that content display widget is present
             from textual.widgets import Static
 
-            # Walk through all descendants to find Static widgets
-            statics = [w for w in app.walk_children() if isinstance(w, Static)]
-            # Should have at least one Static widget with our info text
-            assert len(statics) > 0
-            # Find the one with our text (looking for the navigation hint text)
-            found_info_text = False
-            for static in statics:
-                if hasattr(static, "render") and "Navigate with j/k" in str(static.render()):
-                    found_info_text = True
+            content_display = None
+            for widget in app.walk_children():
+                if isinstance(widget, Static) and widget.id == "content-display":
+                    content_display = widget
                     break
-            assert found_info_text
+            assert content_display is not None, "content-display Static widget should be present"
+
+            # Check that scroll container is present and focusable
+            scroll_container = app._get_scroll_container()
+            assert scroll_container is not None, "scroll container should be present"
+            assert scroll_container.can_focus, "scroll container should be focusable"
 
     async def test_file_selection(self, tmp_path):
         """Test file selection updates content and keeps focus in sidebar."""
