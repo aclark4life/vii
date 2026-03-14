@@ -1314,7 +1314,10 @@ class Vii(GitHandlersMixin, App):
                 # Handle arrow keys in content panel same as vi keys
                 event.prevent_default()
                 if event.key == "down":
-                    if self.git_log_viewing and self.git_log_entries:
+                    # When viewing a commit, just scroll (don't navigate log entries)
+                    if self.git_commit_viewing:
+                        scroll_container.scroll_down()
+                    elif self.git_log_viewing and self.git_log_entries:
                         if self.git_log_highlighted_entry < len(self.git_log_entries) - 1:
                             self.git_log_highlighted_entry += 1
                             self._render_log_with_highlight()
@@ -1334,7 +1337,10 @@ class Vii(GitHandlersMixin, App):
                     else:
                         scroll_container.scroll_down()
                 elif event.key == "up":
-                    if self.git_log_viewing and self.git_log_entries:
+                    # When viewing a commit, just scroll (don't navigate log entries)
+                    if self.git_commit_viewing:
+                        scroll_container.scroll_up()
+                    elif self.git_log_viewing and self.git_log_entries:
                         if self.git_log_highlighted_entry > 0:
                             self.git_log_highlighted_entry -= 1
                             self._render_log_with_highlight()
@@ -1792,7 +1798,10 @@ class Vii(GitHandlersMixin, App):
         content_focused = scroll_container.has_focus
         if content_focused:
             # Handle content panel navigation
-            if self.git_log_viewing and self.git_log_entries:
+            # When viewing a commit, just scroll (don't navigate log entries)
+            if self.git_commit_viewing:
+                scroll_container.scroll_down()
+            elif self.git_log_viewing and self.git_log_entries:
                 if self.git_log_highlighted_entry < len(self.git_log_entries) - 1:
                     self.git_log_highlighted_entry += 1
                     self._render_log_with_highlight()
@@ -1826,7 +1835,10 @@ class Vii(GitHandlersMixin, App):
         content_focused = scroll_container.has_focus
         if content_focused:
             # Handle content panel navigation
-            if self.git_log_viewing and self.git_log_entries:
+            # When viewing a commit, just scroll (don't navigate log entries)
+            if self.git_commit_viewing:
+                scroll_container.scroll_up()
+            elif self.git_log_viewing and self.git_log_entries:
                 if self.git_log_highlighted_entry > 0:
                     self.git_log_highlighted_entry -= 1
                     self._render_log_with_highlight()
@@ -1895,7 +1907,10 @@ class Vii(GitHandlersMixin, App):
 
         content_focused = scroll_container.has_focus
         if content_focused:
-            if self.git_log_viewing and self.git_log_entries:
+            # When viewing a commit, just scroll (don't navigate log entries)
+            if self.git_commit_viewing:
+                scroll_container.scroll_home()
+            elif self.git_log_viewing and self.git_log_entries:
                 self.git_log_highlighted_entry = 0
                 self._render_log_with_highlight()
                 scroll_container.scroll_home()
@@ -1922,7 +1937,10 @@ class Vii(GitHandlersMixin, App):
 
         content_focused = scroll_container.has_focus
         if content_focused:
-            if self.git_log_viewing and self.git_log_entries:
+            # When viewing a commit, just scroll (don't navigate log entries)
+            if self.git_commit_viewing:
+                scroll_container.scroll_end()
+            elif self.git_log_viewing and self.git_log_entries:
                 self.git_log_highlighted_entry = len(self.git_log_entries) - 1
                 self._render_log_with_highlight()
                 scroll_container.scroll_end()

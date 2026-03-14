@@ -418,6 +418,42 @@ class TestVii:
             assert scroll.has_focus
             assert not tree.has_focus
 
+    async def test_jk_scrolls_in_git_commit_view(self, tmp_path):
+        """Test j/k scrolls content when viewing a git commit (not navigating log)."""
+        app = Vii(start_path=tmp_path)
+
+        async with app.run_test() as pilot:
+            await pilot.pause()
+
+            scroll = app._get_scroll_container()
+
+            # Simulate being in git commit viewing mode
+            app.git_log_viewing = True
+            app.git_commit_viewing = True
+            app.git_log_entries = ["abc123", "def456", "ghi789"]
+            app.git_log_highlighted_entry = 1
+
+            # Focus the content panel
+            scroll.focus()
+            await pilot.pause()
+            assert scroll.has_focus
+
+            initial_entry = app.git_log_highlighted_entry
+
+            # Press j - should scroll, not navigate log entries
+            await pilot.press("j")
+            await pilot.pause()
+
+            # The highlighted entry should NOT have changed
+            assert app.git_log_highlighted_entry == initial_entry
+
+            # Press k - should scroll, not navigate log entries
+            await pilot.press("k")
+            await pilot.pause()
+
+            # The highlighted entry should still NOT have changed
+            assert app.git_log_highlighted_entry == initial_entry
+
 
 class TestMain:
     """Test cases for the main entry point."""
