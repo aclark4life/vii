@@ -1199,7 +1199,10 @@ class Vii(GitHandlersMixin, App):
             if content_focused:
                 # Control the content scroll panel
                 if action_key == "down":
-                    if self.git_log_viewing and self.git_log_entries:
+                    # When viewing a commit, just scroll (don't navigate log entries)
+                    if self.git_commit_viewing:
+                        scroll_container.scroll_down()
+                    elif self.git_log_viewing and self.git_log_entries:
                         # Move highlighted entry down in log view
                         if self.git_log_highlighted_entry < len(self.git_log_entries) - 1:
                             self.git_log_highlighted_entry += 1
@@ -1223,7 +1226,10 @@ class Vii(GitHandlersMixin, App):
                     else:
                         scroll_container.scroll_down()
                 elif action_key == "up":
-                    if self.git_log_viewing and self.git_log_entries:
+                    # When viewing a commit, just scroll (don't navigate log entries)
+                    if self.git_commit_viewing:
+                        scroll_container.scroll_up()
+                    elif self.git_log_viewing and self.git_log_entries:
                         # Move highlighted entry up in log view
                         if self.git_log_highlighted_entry > 0:
                             self.git_log_highlighted_entry -= 1
@@ -1245,7 +1251,10 @@ class Vii(GitHandlersMixin, App):
                     else:
                         scroll_container.scroll_up()
                 elif action_key == "home":
-                    if self.git_log_viewing and self.git_log_entries:
+                    # When viewing a commit, just scroll (don't navigate log entries)
+                    if self.git_commit_viewing:
+                        scroll_container.scroll_home()
+                    elif self.git_log_viewing and self.git_log_entries:
                         self.git_log_highlighted_entry = 0
                         self._render_log_with_highlight()
                         scroll_container.scroll_home()
@@ -1260,24 +1269,38 @@ class Vii(GitHandlersMixin, App):
                     else:
                         scroll_container.scroll_home()
                 elif action_key == "end":
-                    if self.git_log_viewing and self.git_log_entries:
+                    # When viewing a commit, just scroll (don't navigate log entries)
+                    if self.git_commit_viewing:
+                        scroll_container.scroll_end()
+                    elif self.git_log_viewing and self.git_log_entries:
                         self.git_log_highlighted_entry = len(self.git_log_entries) - 1
                         self._render_log_with_highlight()
                         scroll_container.scroll_end()
                     elif self.git_blame_viewing and self.git_blame_output:
                         lines = self.git_blame_output.split("\n")
                         self.git_blame_highlighted_line = len(lines) - 1
+                        self._render_blame_with_highlight()
+                        scroll_container.scroll_end()
                     elif self._dir_listing_entries:
                         self._dir_listing_highlighted = len(self._dir_listing_entries) - 1
                         self._render_dir_listing_with_highlight()
                         scroll_container.scroll_end()
-                        self._render_blame_with_highlight()
-                        scroll_container.scroll_end()
                     else:
                         scroll_container.scroll_end()
                 elif action_key == "right":
-                    # l toggles git log in content panel
-                    self.action_git_log()
+                    # l navigates back through git views or toggles git log
+                    if self.git_commit_viewing:
+                        # Go back to git log view
+                        self.git_commit_viewing = False
+                        self.git_commit_hash = ""
+                        self._render_log_with_highlight()
+                        self._scroll_to_log_entry()
+                    elif self.git_log_viewing:
+                        # Close git log and restore file content
+                        self.action_git_log()
+                    else:
+                        # Toggle git log on
+                        self.action_git_log()
                 elif action_key == "left":
                     # h scrolls left in content panel
                     if scroll_container.allow_horizontal_scroll:

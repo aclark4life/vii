@@ -430,7 +430,7 @@ class TestVii:
             # Simulate being in git commit viewing mode
             app.git_log_viewing = True
             app.git_commit_viewing = True
-            app.git_log_entries = ["abc123", "def456", "ghi789"]
+            app.git_log_entries = [(0, 2), (3, 5), (6, 8)]
             app.git_log_highlighted_entry = 1
 
             # Focus the content panel
@@ -453,6 +453,73 @@ class TestVii:
 
             # The highlighted entry should still NOT have changed
             assert app.git_log_highlighted_entry == initial_entry
+
+    async def test_jk_scrolls_in_git_commit_view_integration(self):
+        """Integration test: j/k scrolls when viewing commit details from git log."""
+        import subprocess
+        from pathlib import Path
+
+        # Use the vii project directory (a real git repo)
+        vii_path = Path(__file__).parent.parent
+
+        # Verify it's a git repo
+        result = subprocess.run(
+            ["git", "rev-parse", "--git-dir"],
+            cwd=vii_path,
+            capture_output=True,
+        )
+        if result.returncode != 0:
+            pytest.skip("Not in a git repository")
+
+        app = Vii(start_path=vii_path)
+
+        async with app.run_test() as pilot:
+            await pilot.pause()
+
+            scroll = app._get_scroll_container()
+
+            # Focus content panel and open git log
+            scroll.focus()
+            await pilot.pause()
+
+            await pilot.press("l")  # Open git log
+            await pilot.pause()
+            await pilot.pause()
+
+            assert app.git_log_viewing, "Git log should be visible"
+            assert len(app.git_log_entries) > 0, "Should have log entries"
+            assert not app.git_commit_viewing, "Should not be viewing commit yet"
+
+            initial_entry = app.git_log_highlighted_entry
+
+            # Press Enter to view the commit details
+            await pilot.press("enter")
+            await pilot.pause()
+
+            assert app.git_commit_viewing, "Should be viewing commit details"
+            assert app.git_log_viewing, "Git log viewing should still be True"
+
+            # Now j/k should scroll, not navigate log entries
+            await pilot.press("j")
+            await pilot.pause()
+
+            assert app.git_log_highlighted_entry == initial_entry, (
+                "j should scroll commit view, not navigate log entries"
+            )
+
+            await pilot.press("k")
+            await pilot.pause()
+
+            assert app.git_log_highlighted_entry == initial_entry, (
+                "k should scroll commit view, not navigate log entries"
+            )
+
+            # ESC should go back to log view
+            await pilot.press("escape")
+            await pilot.pause()
+
+            assert not app.git_commit_viewing, "Should be back to log view"
+            assert app.git_log_viewing, "Should still be viewing log"
 
 
 class TestMain:
