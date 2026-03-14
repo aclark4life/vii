@@ -253,6 +253,130 @@ class TestVii:
             # Verify sidebar keeps focus (file selection no longer switches to content panel)
             assert tree.has_focus
 
+    async def test_jk_navigation(self, tmp_path):
+        """Test j/k keys navigate in the directory tree."""
+        # Create test files
+        (tmp_path / "file1.txt").write_text("first")
+        (tmp_path / "file2.txt").write_text("second")
+        (tmp_path / "file3.txt").write_text("third")
+
+        app = Vii(start_path=tmp_path)
+
+        async with app.run_test() as pilot:
+            await pilot.pause()
+
+            tree = app._get_tree()
+            assert tree is not None
+
+            # Expand the root to see files
+            tree.root.expand()
+            await pilot.pause()
+            await pilot.pause()
+
+            # Initial cursor should be on root
+            initial_cursor = tree.cursor_node.data.path.name
+
+            # Press j to move down
+            await pilot.press("j")
+            await pilot.pause()
+            after_j = tree.cursor_node.data.path.name
+            assert after_j != initial_cursor, "j should move cursor down"
+
+            # Press j again
+            await pilot.press("j")
+            await pilot.pause()
+            after_second_j = tree.cursor_node.data.path.name
+            assert after_second_j != after_j, "j should continue moving down"
+
+            # Press k to move back up
+            await pilot.press("k")
+            await pilot.pause()
+            after_k = tree.cursor_node.data.path.name
+            assert after_k == after_j, "k should move cursor back up"
+
+    async def test_panel_resizing(self, tmp_path):
+        """Test sidebar panel can be resized."""
+        app = Vii(start_path=tmp_path)
+
+        async with app.run_test() as pilot:
+            await pilot.pause()
+
+            # Find the sidebar
+            sidebar = None
+            for widget in app.walk_children():
+                if widget.id == "sidebar":
+                    sidebar = widget
+                    break
+            assert sidebar is not None
+
+            # Set a new width
+            app.set_sidebar_width(40)
+            await pilot.pause()
+
+            assert app.sidebar_width == 40
+            assert sidebar.styles.width.value == 40
+
+            # Set another width
+            app.set_sidebar_width(60)
+            await pilot.pause()
+
+            assert app.sidebar_width == 60
+            assert sidebar.styles.width.value == 60
+
+    async def test_content_loading(self, tmp_path):
+        """Test content panel loads file content when navigating."""
+        # Create a test file with known content
+        test_content = "Hello, this is test content!"
+        (tmp_path / "test.txt").write_text(test_content)
+
+        app = Vii(start_path=tmp_path)
+
+        async with app.run_test() as pilot:
+            await pilot.pause()
+
+            tree = app._get_tree()
+            assert tree is not None
+
+            # Expand root
+            tree.root.expand()
+            await pilot.pause()
+            await pilot.pause()
+
+            # Navigate to the file
+            await pilot.press("j")
+            await pilot.pause()
+            await pilot.pause()
+            await pilot.pause()  # Wait for debounced content update
+
+            # Check content display
+            content_display = app._get_content_display()
+            assert content_display is not None
+
+            rendered = str(content_display.render())
+            assert test_content in rendered, f"Content should contain '{test_content}'"
+
+    async def test_helper_methods_return_widgets(self, tmp_path):
+        """Test that _get_tree, _get_scroll_container, _get_content_display return widgets."""
+        app = Vii(start_path=tmp_path)
+
+        async with app.run_test() as pilot:
+            await pilot.pause()
+
+            # Test _get_tree
+            tree = app._get_tree()
+            assert tree is not None
+            assert isinstance(tree, DirectoryTree)
+
+            # Test _get_scroll_container
+            scroll = app._get_scroll_container()
+            assert scroll is not None
+            assert scroll.id == "content-scroll"
+
+            # Test _get_content_display
+            content = app._get_content_display()
+            assert content is not None
+            assert content.id == "content-display"
+
 
 class TestMain:
     """Test cases for the main entry point."""

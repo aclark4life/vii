@@ -251,10 +251,20 @@ class Vii(GitHandlersMixin, App):
         """React to sidebar width changes."""
         try:
             # Find sidebar by iterating (query_one with type can return None)
-            for widget in self.query("*"):
+            widgets = self.query("*")
+            if widgets is not None:
+                for widget in widgets:
+                    if widget.id == "sidebar":
+                        widget.styles.width = f"{width}"
+                        return
+        except Exception:
+            pass
+        # Fallback: use walk_children (works in Textual 8.x)
+        try:
+            for widget in self.walk_children():
                 if widget.id == "sidebar":
                     widget.styles.width = f"{width}"
-                    break
+                    return
         except Exception:
             pass  # Widget may not be mounted yet
 
@@ -270,9 +280,15 @@ class Vii(GitHandlersMixin, App):
         try:
             # Fallback: iterate widgets
             widgets = self.query("*")
-            if widgets is None:
-                return None
-            for widget in widgets:
+            if widgets is not None:
+                for widget in widgets:
+                    if isinstance(widget, DirectoryTree):
+                        return widget
+        except Exception:
+            pass
+        # Fallback: use walk_children (works in Textual 8.x)
+        try:
+            for widget in self.walk_children():
                 if isinstance(widget, DirectoryTree):
                     return widget
         except Exception:
@@ -289,9 +305,15 @@ class Vii(GitHandlersMixin, App):
             pass
         try:
             widgets = self.query("*")
-            if widgets is None:
-                return None
-            for widget in widgets:
+            if widgets is not None:
+                for widget in widgets:
+                    if widget.id == "content-scroll":
+                        return widget
+        except Exception:
+            pass
+        # Fallback: use walk_children (works in Textual 8.x)
+        try:
+            for widget in self.walk_children():
                 if widget.id == "content-scroll":
                     return widget
         except Exception:
@@ -308,9 +330,15 @@ class Vii(GitHandlersMixin, App):
             pass
         try:
             widgets = self.query("*")
-            if widgets is None:
-                return None
-            for widget in widgets:
+            if widgets is not None:
+                for widget in widgets:
+                    if widget.id == "content-display":
+                        return widget
+        except Exception:
+            pass
+        # Fallback: use walk_children (works in Textual 8.x)
+        try:
+            for widget in self.walk_children():
                 if widget.id == "content-display":
                     return widget
         except Exception:
@@ -864,10 +892,7 @@ class Vii(GitHandlersMixin, App):
         self.git_log_page = 0
 
         try:
-            tree_results = self.query(DirectoryTree)
-            if not tree_results:
-                return
-            tree = tree_results.first()
+            tree = self._get_tree()
             if not tree or not tree.cursor_node or not tree.cursor_node.data:
                 return
 
@@ -884,12 +909,8 @@ class Vii(GitHandlersMixin, App):
             if path == self._displayed_path:
                 return
 
-            content_results = self.query("#content-display")
-            scroll_results = self.query("#content-scroll")
-            if not content_results or not scroll_results:
-                return
-            content_display = content_results.first()
-            scroll_container = scroll_results.first()
+            content_display = self._get_content_display()
+            scroll_container = self._get_scroll_container()
             if not content_display or not scroll_container:
                 return
 
@@ -1068,16 +1089,9 @@ class Vii(GitHandlersMixin, App):
     def _update_content_display(self) -> None:
         """Update the content display synchronously (for non-navigation updates)."""
         try:
-            tree_results = self.query(DirectoryTree)
-            content_results = self.query("#content-display")
-            scroll_results = self.query("#content-scroll")
-
-            if not tree_results or not content_results or not scroll_results:
-                return
-
-            tree = tree_results.first()
-            content_display = content_results.first()
-            scroll_container = scroll_results.first()
+            tree = self._get_tree()
+            content_display = self._get_content_display()
+            scroll_container = self._get_scroll_container()
 
             if not tree or not content_display or not scroll_container:
                 return
@@ -1150,15 +1164,9 @@ class Vii(GitHandlersMixin, App):
         if self.focused and isinstance(self.focused, Input):
             return
 
-        # Query widgets - use query() which returns empty list if not found
-        tree_results = self.query(DirectoryTree)
-        scroll_results = self.query("#content-scroll")
-
-        if not tree_results or not scroll_results:
-            return
-
-        tree = tree_results.first()
-        scroll_container = scroll_results.first()
+        # Get widgets using helper methods (work with Textual 8.x)
+        tree = self._get_tree()
+        scroll_container = self._get_scroll_container()
 
         if not tree or not scroll_container:
             return
@@ -1769,6 +1777,165 @@ class Vii(GitHandlersMixin, App):
             self._perform_sidebar_search(event.value)
             self._hide_sidebar_search()
 
+    def action_cursor_down(self) -> None:
+        """Move cursor down in tree or scroll content."""
+        tree = self._get_tree()
+        scroll_container = self._get_scroll_container()
+        if not tree or not scroll_container:
+            return
+
+        content_focused = scroll_container.has_focus
+        if content_focused:
+            # Handle content panel navigation
+            if self.git_log_viewing and self.git_log_entries:
+                if self.git_log_highlighted_entry < len(self.git_log_entries) - 1:
+                    self.git_log_highlighted_entry += 1
+                    self._render_log_with_highlight()
+                    self._scroll_to_log_entry()
+            elif self.git_blame_viewing and self.git_blame_output:
+                lines = self.git_blame_output.split("\n")
+                max_line = len(lines) - 1
+                if self.git_blame_highlighted_line < max_line:
+                    self.git_blame_highlighted_line += 1
+                    self._render_blame_with_highlight()
+                    self._scroll_to_blame_line()
+            elif self._dir_listing_entries:
+                if self._dir_listing_highlighted < len(self._dir_listing_entries) - 1:
+                    self._dir_listing_highlighted += 1
+                    self._render_dir_listing_with_highlight()
+                    self._scroll_to_dir_entry()
+            else:
+                scroll_container.scroll_down()
+        else:
+            # Control the directory tree
+            tree.action_cursor_down()
+            self._schedule_content_update()
+
+    def action_cursor_up(self) -> None:
+        """Move cursor up in tree or scroll content."""
+        tree = self._get_tree()
+        scroll_container = self._get_scroll_container()
+        if not tree or not scroll_container:
+            return
+
+        content_focused = scroll_container.has_focus
+        if content_focused:
+            # Handle content panel navigation
+            if self.git_log_viewing and self.git_log_entries:
+                if self.git_log_highlighted_entry > 0:
+                    self.git_log_highlighted_entry -= 1
+                    self._render_log_with_highlight()
+                    self._scroll_to_log_entry()
+            elif self.git_blame_viewing and self.git_blame_output:
+                if self.git_blame_highlighted_line > 0:
+                    self.git_blame_highlighted_line -= 1
+                    self._render_blame_with_highlight()
+                    self._scroll_to_blame_line()
+            elif self._dir_listing_entries:
+                if self._dir_listing_highlighted > 0:
+                    self._dir_listing_highlighted -= 1
+                    self._render_dir_listing_with_highlight()
+                    self._scroll_to_dir_entry()
+            else:
+                scroll_container.scroll_up()
+        else:
+            # Control the directory tree
+            tree.action_cursor_up()
+            self._schedule_content_update()
+
+    def action_cursor_left(self) -> None:
+        """Collapse tree node or scroll content left."""
+        tree = self._get_tree()
+        scroll_container = self._get_scroll_container()
+        if not tree or not scroll_container:
+            return
+
+        content_focused = scroll_container.has_focus
+        if content_focused:
+            if scroll_container.allow_horizontal_scroll:
+                scroll_container.scroll_left()
+        else:
+            # Collapse current node or move to parent
+            if tree.cursor_node and tree.cursor_node.is_expanded:
+                tree.cursor_node.collapse()
+            else:
+                tree.action_cursor_parent()
+            self._schedule_content_update()
+
+    def action_cursor_right(self) -> None:
+        """Expand tree node or toggle git log in content."""
+        tree = self._get_tree()
+        scroll_container = self._get_scroll_container()
+        if not tree or not scroll_container:
+            return
+
+        content_focused = scroll_container.has_focus
+        if content_focused:
+            # l toggles git log in content panel
+            self.action_git_log()
+        else:
+            # Expand current node or move down
+            if tree.cursor_node and not tree.cursor_node.is_expanded:
+                tree.cursor_node.expand()
+            else:
+                tree.action_cursor_down()
+            self._schedule_content_update()
+
+    def action_scroll_home(self) -> None:
+        """Scroll to top of tree or content."""
+        tree = self._get_tree()
+        scroll_container = self._get_scroll_container()
+        if not tree or not scroll_container:
+            return
+
+        content_focused = scroll_container.has_focus
+        if content_focused:
+            if self.git_log_viewing and self.git_log_entries:
+                self.git_log_highlighted_entry = 0
+                self._render_log_with_highlight()
+                scroll_container.scroll_home()
+            elif self.git_blame_viewing and self.git_blame_output:
+                self.git_blame_highlighted_line = 0
+                self._render_blame_with_highlight()
+                scroll_container.scroll_home()
+            elif self._dir_listing_entries:
+                self._dir_listing_highlighted = 0
+                self._render_dir_listing_with_highlight()
+                scroll_container.scroll_home()
+            else:
+                scroll_container.scroll_home()
+        else:
+            tree.action_scroll_home()
+            self._schedule_content_update()
+
+    def action_scroll_end(self) -> None:
+        """Scroll to end of tree or content."""
+        tree = self._get_tree()
+        scroll_container = self._get_scroll_container()
+        if not tree or not scroll_container:
+            return
+
+        content_focused = scroll_container.has_focus
+        if content_focused:
+            if self.git_log_viewing and self.git_log_entries:
+                self.git_log_highlighted_entry = len(self.git_log_entries) - 1
+                self._render_log_with_highlight()
+                scroll_container.scroll_end()
+            elif self.git_blame_viewing and self.git_blame_output:
+                lines = self.git_blame_output.split("\n")
+                self.git_blame_highlighted_line = len(lines) - 1
+                self._render_blame_with_highlight()
+                scroll_container.scroll_end()
+            elif self._dir_listing_entries:
+                self._dir_listing_highlighted = len(self._dir_listing_entries) - 1
+                self._render_dir_listing_with_highlight()
+                scroll_container.scroll_end()
+            else:
+                scroll_container.scroll_end()
+        else:
+            tree.action_scroll_end()
+            self._schedule_content_update()
+
     def action_page_up(self) -> None:
         """Scroll the content panel up by one page."""
         scroll_container = self._get_scroll_container()
@@ -1785,11 +1952,9 @@ class Vii(GitHandlersMixin, App):
         """Handle file selection from the directory tree - keep focus in sidebar."""
         # Update content display but keep focus in the sidebar (debounced for rapid navigation)
         self._schedule_content_update()
-        tree_results = self.query(DirectoryTree)
-        if tree_results:
-            tree = tree_results.first()
-            if tree:
-                tree.focus()
+        tree = self._get_tree()
+        if tree:
+            tree.focus()
 
     def on_directory_tree_directory_selected(self, event: DirectoryTree.DirectorySelected) -> None:
         """Handle directory selection from the directory tree."""
@@ -1803,14 +1968,8 @@ class Vii(GitHandlersMixin, App):
     def on_click(self, event: events.Click) -> None:
         """Handle mouse clicks to stop scroll animations and highlight blame lines."""
         # Check if the click is in the content scroll container
-        scroll_results = self.query("#content-scroll")
-        tree_results = self.query(DirectoryTree)
-
-        if not scroll_results or not tree_results:
-            return
-
-        scroll_container = scroll_results.first()
-        tree = tree_results.first()
+        scroll_container = self._get_scroll_container()
+        tree = self._get_tree()
 
         if not scroll_container or not tree:
             return
