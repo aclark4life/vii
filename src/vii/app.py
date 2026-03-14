@@ -211,7 +211,7 @@ class Vii(App):
 
         Removes oldest notifications to keep max 3 on screen.
         """
-        from textual.widgets import Toast
+        from textual.widgets._toast import Toast
 
         # Find existing toasts and remove oldest if we have 3+
         toasts = list(self.screen.query(Toast))
