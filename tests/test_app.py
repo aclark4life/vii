@@ -377,6 +377,47 @@ class TestVii:
             assert content is not None
             assert content.id == "content-display"
 
+    async def test_enter_toggles_focus(self, tmp_path):
+        """Test Enter key toggles focus between sidebar and content panel."""
+        (tmp_path / "test.txt").write_text("content")
+
+        app = Vii(start_path=tmp_path)
+
+        async with app.run_test() as pilot:
+            await pilot.pause()
+
+            tree = app._get_tree()
+            scroll = app._get_scroll_container()
+
+            # Expand and navigate to file
+            tree.root.expand()
+            await pilot.pause()
+            await pilot.press("j")
+            await pilot.pause()
+            await pilot.pause()  # Wait for content update
+
+            # Initial state: tree has focus
+            assert tree.has_focus
+            assert not scroll.has_focus
+
+            # Tab to content panel
+            await pilot.press("tab")
+            await pilot.pause()
+            assert scroll.has_focus
+            assert not tree.has_focus
+
+            # Enter should switch back to sidebar
+            await pilot.press("enter")
+            await pilot.pause()
+            assert tree.has_focus
+            assert not scroll.has_focus
+
+            # Enter on file should switch to content
+            await pilot.press("enter")
+            await pilot.pause()
+            assert scroll.has_focus
+            assert not tree.has_focus
+
 
 class TestMain:
     """Test cases for the main entry point."""

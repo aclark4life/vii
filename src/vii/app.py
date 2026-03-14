@@ -141,6 +141,7 @@ class Vii(GitHandlersMixin, App):
         Binding("u", "page_up", "Page Up"),
         Binding("e", "edit_file", "Edit"),
         Binding("s", "open_shell", "Shell"),
+        Binding("enter", "select_or_toggle_focus", "Select", show=False, priority=True),
         # Git bindings
         Binding("b", "git_blame", "Blame"),
         # Arrow keys still work but hidden from footer
@@ -923,6 +924,10 @@ class Vii(GitHandlersMixin, App):
                 self._displayed_path = path
                 scroll_container.scroll_home(animate=False)
                 return
+
+            # Not a directory - clear directory listing state
+            self._dir_listing_entries = []
+            self._dir_listing_highlighted = -1
 
             # Use cached content if available (includes syntax highlighting)
             if path in self._rendered_cache:
@@ -1947,6 +1952,46 @@ class Vii(GitHandlersMixin, App):
         scroll_container = self._get_scroll_container()
         if scroll_container:
             scroll_container.scroll_page_down()
+
+    def action_select_or_toggle_focus(self) -> None:
+        """Handle Enter key - select item or toggle focus between panels."""
+        tree = self._get_tree()
+        scroll_container = self._get_scroll_container()
+        if not tree or not scroll_container:
+            return
+
+        content_focused = scroll_container.has_focus
+
+        if content_focused:
+            # In content panel: handle special views or switch back to sidebar
+            if self.git_log_viewing and not self.git_commit_viewing:
+                # Show the highlighted commit details
+                self._show_git_commit()
+            elif self._dir_listing_entries and 0 <= self._dir_listing_highlighted < len(
+                self._dir_listing_entries
+            ):
+                # Navigate to the highlighted directory entry
+                clicked_path = self._dir_listing_entries[self._dir_listing_highlighted]
+                self._navigate_to_path(clicked_path)
+            else:
+                # Switch focus back to sidebar
+                tree.focus()
+        else:
+            # In sidebar: toggle directory or switch to content panel
+            if tree.cursor_node and tree.cursor_node.data:
+                path = tree.cursor_node.data.path
+                if path.is_dir():
+                    # Toggle directory expansion
+                    if tree.cursor_node.is_expanded:
+                        tree.cursor_node.collapse()
+                    else:
+                        tree.cursor_node.expand()
+                else:
+                    # For files, switch focus to content panel
+                    scroll_container.focus()
+            else:
+                # No node selected, switch focus to content panel
+                scroll_container.focus()
 
     def on_directory_tree_file_selected(self, event: DirectoryTree.FileSelected) -> None:
         """Handle file selection from the directory tree - keep focus in sidebar."""
