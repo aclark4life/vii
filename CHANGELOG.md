@@ -20,7 +20,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - `g`/`G` to jump to top/bottom
   - Full-width highlight bar
   - Auto-scroll to keep highlighted line visible
+- Interactive git log view with entry highlighting:
+  - Visual highlight (reverse video) on selected commit entry
+  - `j`/`k` keys to navigate between commits
+  - `g`/`G` to jump to first/last commit
+  - Click to select a commit entry
+  - Double-click or `Enter` to view full commit details with `git show`
+  - `ESC` returns from commit view to log, or closes log
+  - Syntax-highlighted diff output matching content panel theme
 - Double-click on file in sidebar to open in editor (same as `e` key)
+- Notification limit: max 3 notifications visible, oldest removed when exceeded
 
 ## [0.1.0a4] - 2026-03-12
 
