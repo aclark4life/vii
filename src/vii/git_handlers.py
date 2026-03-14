@@ -69,8 +69,6 @@ class GitHandlersMixin:
     def _update_header(self) -> None: ...
     def _reload_tree(self) -> None: ...
 
-    """Mixin providing git-related functionality for the Vii app."""
-
     def _git_status(self) -> None:
         """Show git status."""
         if not self.git_branch or not self.git_root:
@@ -130,7 +128,8 @@ class GitHandlersMixin:
 
                 # Focus the content panel so n/p keys work
                 scroll_container = self.query_one("#content-scroll", ScrollableContainer)
-                scroll_container.focus()
+                if scroll_container:
+                    scroll_container.focus()
 
                 self.notify(f"Showing git log (page {page + 1})")
             else:
@@ -507,7 +506,8 @@ class GitHandlersMixin:
 
                 # Focus the content panel
                 scroll_container = self.query_one("#content-scroll", ScrollableContainer)
-                scroll_container.focus()
+                if scroll_container:
+                    scroll_container.focus()
 
                 self.notify(f"Showing blame for {path.name}")
             else:
