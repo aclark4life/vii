@@ -107,26 +107,19 @@ class VerticalSplitter(Widget):
     def __init__(self, **kwargs) -> None:
         super().__init__(**kwargs)
         self._drag_start_x: int = 0
+        self._did_drag: bool = False  # Track if actual dragging occurred
 
     def render(self) -> str:
         """Render the splitter."""
         return "┃"
 
-    def on_click(self, event: events.Click) -> None:
-        """Toggle active state on click."""
-        if self.has_class("-active"):
-            self.remove_class("-active")
-        else:
-            self.add_class("-active")
-        event.stop()
-
     def on_mouse_down(self, event: events.MouseDown) -> None:
         """Start dragging when mouse is pressed."""
         self.is_dragging = True
+        self._did_drag = False  # Reset drag tracking
         self._drag_start_x = event.screen_x
         self.capture_mouse()
         self.add_class("-dragging")
-        self.add_class("-active")  # Keep visible after drag
         event.stop()
 
     def on_mouse_up(self, event: events.MouseUp) -> None:
@@ -135,11 +128,21 @@ class VerticalSplitter(Widget):
             self.is_dragging = False
             self.release_mouse()
             self.remove_class("-dragging")
+            # If we actually dragged, keep the active state
+            if self._did_drag:
+                self.add_class("-active")
+            else:
+                # Just a click - toggle active state
+                if self.has_class("-active"):
+                    self.remove_class("-active")
+                else:
+                    self.add_class("-active")
             event.stop()
 
     def on_mouse_move(self, event: events.MouseMove) -> None:
         """Handle mouse movement during drag."""
         if self.is_dragging:
+            self._did_drag = True  # Mark that actual dragging occurred
             # Calculate the new sidebar width based on mouse position
             app = self.app
             if hasattr(app, "set_sidebar_width"):
