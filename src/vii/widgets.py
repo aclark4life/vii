@@ -125,10 +125,8 @@ class VerticalSplitter(Widget):
         """Handle mouse movement during drag."""
         if self.is_dragging:
             # Calculate the new sidebar width based on mouse position
-            from vii.app import Vii
-
             app = self.app
-            if isinstance(app, Vii):
-                new_width = event.screen_x
+            if hasattr(app, "set_sidebar_width"):
+                new_width = int(event.screen_x)
                 app.set_sidebar_width(new_width)
             event.stop()

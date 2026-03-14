@@ -250,8 +250,11 @@ class Vii(GitHandlersMixin, App):
     def watch_sidebar_width(self, width: int) -> None:
         """React to sidebar width changes."""
         try:
-            sidebar = self.query_one("#sidebar")
-            sidebar.styles.width = width
+            # Find sidebar by iterating (query_one with type can return None)
+            for widget in self.query("*"):
+                if widget.id == "sidebar":
+                    widget.styles.width = f"{width}"
+                    break
         except Exception:
             pass  # Widget may not be mounted yet
 
