@@ -1545,6 +1545,9 @@ class Vii(App):
                     if start_line <= relative_y <= end_line:
                         self.git_log_highlighted_entry = i
                         self._render_log_with_highlight()
+                        # Double-click opens the commit details
+                        if event.chain >= 2:
+                            self._show_git_commit()
                         break
 
             # Handle blame view line highlighting
