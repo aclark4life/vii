@@ -444,3 +444,31 @@ def get_git_log(path: Path, max_count: int = 50, skip: int = 0) -> str | None:
         return result.stdout if result.stdout else None
     except (subprocess.CalledProcessError, subprocess.TimeoutExpired, FileNotFoundError):
         return None
+
+
+def get_git_show(path: Path, commit_hash: str) -> str | None:
+    """Get detailed commit information using git show.
+
+    Args:
+        path: Path inside a git repository
+        commit_hash: The commit hash to show
+
+    Returns:
+        Commit details as string, or None if error
+    """
+    try:
+        git_root = get_git_root(path)
+        if not git_root:
+            return None
+
+        result = subprocess.run(
+            ["git", "show", "--stat", "--patch", commit_hash],
+            cwd=str(git_root),
+            capture_output=True,
+            check=True,
+            timeout=10,
+            text=True,
+        )
+        return result.stdout if result.stdout else None
+    except (subprocess.CalledProcessError, subprocess.TimeoutExpired, FileNotFoundError):
+        return None

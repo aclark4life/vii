@@ -187,6 +187,13 @@ class Vii(App):
         # Track currently displayed path to avoid redundant updates
         self._displayed_path: Path | None = None
         self.git_log_viewing: bool = False
+        self.git_log_output: str = ""  # Store log output for re-rendering
+        self.git_log_entries: list[
+            tuple[int, int]
+        ] = []  # List of (start_line, end_line) for each entry
+        self.git_log_highlighted_entry: int = -1  # Currently highlighted entry index (-1 = none)
+        self.git_commit_viewing: bool = False  # True when viewing a specific commit
+        self.git_commit_hash: str = ""  # Currently viewed commit hash
         self.git_blame_viewing: bool = False
         self.git_blame_output: str = ""  # Store blame output for re-rendering
         self.git_blame_highlighted_line: int = -1  # Currently highlighted line (-1 = none)
@@ -683,6 +690,11 @@ class Vii(App):
         self.search_matches = []
         self.current_match_index = -1
         self.git_log_viewing = False
+        self.git_log_output = ""
+        self.git_log_entries = []
+        self.git_log_highlighted_entry = -1
+        self.git_commit_viewing = False
+        self.git_commit_hash = ""
         self.git_blame_viewing = False
         self.git_log_page = 0
 
@@ -850,6 +862,11 @@ class Vii(App):
                 self.search_matches = []
                 self.current_match_index = -1
                 self.git_log_viewing = False
+                self.git_log_output = ""
+                self.git_log_entries = []
+                self.git_log_highlighted_entry = -1
+                self.git_commit_viewing = False
+                self.git_commit_hash = ""
                 self.git_blame_viewing = False
                 self.git_log_page = 0
 
@@ -924,6 +941,11 @@ class Vii(App):
                 self.search_matches = []
                 self.current_match_index = -1
                 self.git_log_viewing = False
+                self.git_log_output = ""
+                self.git_log_entries = []
+                self.git_log_highlighted_entry = -1
+                self.git_commit_viewing = False
+                self.git_commit_hash = ""
                 self.git_blame_viewing = False
                 self.git_log_page = 0
         except Exception:
@@ -961,7 +983,13 @@ class Vii(App):
             if content_focused:
                 # Control the content scroll panel
                 if action_key == "down":
-                    if self.git_blame_viewing and self.git_blame_output:
+                    if self.git_log_viewing and self.git_log_entries:
+                        # Move highlighted entry down in log view
+                        if self.git_log_highlighted_entry < len(self.git_log_entries) - 1:
+                            self.git_log_highlighted_entry += 1
+                            self._render_log_with_highlight()
+                            self._scroll_to_log_entry()
+                    elif self.git_blame_viewing and self.git_blame_output:
                         # Move highlighted line down in blame view
                         lines = self.git_blame_output.split("\n")
                         max_line = len(lines) - 1
@@ -973,7 +1001,13 @@ class Vii(App):
                     else:
                         scroll_container.scroll_down()
                 elif action_key == "up":
-                    if self.git_blame_viewing and self.git_blame_output:
+                    if self.git_log_viewing and self.git_log_entries:
+                        # Move highlighted entry up in log view
+                        if self.git_log_highlighted_entry > 0:
+                            self.git_log_highlighted_entry -= 1
+                            self._render_log_with_highlight()
+                            self._scroll_to_log_entry()
+                    elif self.git_blame_viewing and self.git_blame_output:
                         # Move highlighted line up in blame view
                         if self.git_blame_highlighted_line > 0:
                             self.git_blame_highlighted_line -= 1
@@ -983,14 +1017,22 @@ class Vii(App):
                     else:
                         scroll_container.scroll_up()
                 elif action_key == "home":
-                    if self.git_blame_viewing and self.git_blame_output:
+                    if self.git_log_viewing and self.git_log_entries:
+                        self.git_log_highlighted_entry = 0
+                        self._render_log_with_highlight()
+                        scroll_container.scroll_home()
+                    elif self.git_blame_viewing and self.git_blame_output:
                         self.git_blame_highlighted_line = 0
                         self._render_blame_with_highlight()
                         scroll_container.scroll_home()
                     else:
                         scroll_container.scroll_home()
                 elif action_key == "end":
-                    if self.git_blame_viewing and self.git_blame_output:
+                    if self.git_log_viewing and self.git_log_entries:
+                        self.git_log_highlighted_entry = len(self.git_log_entries) - 1
+                        self._render_log_with_highlight()
+                        scroll_container.scroll_end()
+                    elif self.git_blame_viewing and self.git_blame_output:
                         lines = self.git_blame_output.split("\n")
                         self.git_blame_highlighted_line = len(lines) - 1
                         self._render_blame_with_highlight()
@@ -1075,11 +1117,23 @@ class Vii(App):
                 self._git_log(self.git_log_page - 1)
         elif content_focused and event.key == "escape":
             # Handle ESC key in content panel
-            if self.git_log_viewing:
+            if self.git_commit_viewing:
+                # Go back to git log view
+                event.prevent_default()
+                self.git_commit_viewing = False
+                self.git_commit_hash = ""
+                self._render_log_with_highlight()
+                self._scroll_to_log_entry()
+            elif self.git_log_viewing:
                 # Close git log display and restore file content
                 event.prevent_default()
                 self.git_log_viewing = False
                 self.git_log_page = 0
+                self.git_log_output = ""
+                self.git_log_entries = []
+                self.git_log_highlighted_entry = -1
+                self.git_commit_viewing = False
+                self.git_commit_hash = ""
                 self._update_content_display()
             elif self.git_blame_viewing:
                 # Close git blame display and restore file content
@@ -1102,10 +1156,14 @@ class Vii(App):
             event.prevent_default()
             scroll_container.action_scroll_right()
         elif content_focused and event.key == "enter":
-            # Switch focus back to sidebar
             event.prevent_default()
-            tree = self.query_one(DirectoryTree)
-            tree.focus()
+            if self.git_log_viewing and not self.git_commit_viewing:
+                # Show the highlighted commit details
+                self._show_git_commit()
+            else:
+                # Switch focus back to sidebar
+                tree = self.query_one(DirectoryTree)
+                tree.focus()
         elif not content_focused and event.key == "enter":
             # In sidebar: toggle directory or switch to content panel
             event.prevent_default()
@@ -1538,6 +1596,11 @@ class Vii(App):
             # Turn off log and restore file content
             self.git_log_viewing = False
             self.git_log_page = 0
+            self.git_log_output = ""
+            self.git_log_entries = []
+            self.git_log_highlighted_entry = -1
+            self.git_commit_viewing = False
+            self.git_commit_hash = ""
             self._update_content_display()
             self.notify("Hiding git log")
         else:
@@ -1760,31 +1823,17 @@ class Vii(App):
             log_output = get_git_log(current_dir, max_count=self.git_log_page_size, skip=skip)
 
             if log_output:
-                # Display log in content panel
-                from rich.text import Text
-
-                text = Text()
-                text.append(f"📜 Git Log (Page {page + 1})\n\n", style="bold")
-                text.append(log_output)
-                text.append("\n\n")
-                text.append("Navigation: ", style="dim")
-                if page > 0:
-                    text.append("n", style="bold cyan")
-                    text.append(" = Next page  ", style="dim")
-                    text.append("p", style="bold cyan")
-                    text.append(" = Previous page  ", style="dim")
-                else:
-                    text.append("n", style="bold cyan")
-                    text.append(" = Next page  ", style="dim")
-                text.append("ESC", style="bold cyan")
-                text.append(" = Close", style="dim")
-
-                content_display = self.query_one("#content-display", Static)
-                content_display.update(text)
+                # Store log output and parse entries
+                self.git_log_output = log_output
+                self.git_log_entries = self._parse_git_log_entries(log_output)
+                self.git_log_highlighted_entry = 0 if self.git_log_entries else -1
 
                 # Update state
                 self.git_log_page = page
                 self.git_log_viewing = True
+
+                # Render with highlighting
+                self._render_log_with_highlight()
 
                 # Focus the content panel so n/p keys work
                 scroll_container = self.query_one("#content-scroll", ScrollableContainer)
@@ -1798,6 +1847,198 @@ class Vii(App):
                     self.notify("No git log available", severity="information")
         except Exception as e:
             self.notify(f"Git log failed: {e}", severity="error")
+
+    def _parse_git_log_entries(self, log_output: str) -> list[tuple[int, int]]:
+        """Parse git log output to identify entry boundaries.
+
+        Each commit entry typically has:
+        - Line with hash, date, author (may have graph chars like * or |)
+        - Line(s) with commit message (indented)
+        - Empty line separator
+
+        Returns:
+            List of (start_line, end_line) tuples for each commit entry
+        """
+        lines = log_output.split("\n")
+        entries = []
+        entry_start = None
+
+        for i, line in enumerate(lines):
+            stripped = line.lstrip("*| ")
+            # Check if this line starts a new commit (has a short hash pattern)
+            # The format is: "* <hash> <date> <author>" or similar with graph chars
+            if stripped and not stripped.startswith(" ") and len(stripped) > 7:
+                # Check for typical hash pattern (7+ hex chars at start)
+                first_word = stripped.split()[0] if stripped.split() else ""
+                if len(first_word) >= 7 and all(
+                    c in "0123456789abcdef" for c in first_word.lower()
+                ):
+                    # This is a new commit entry
+                    if entry_start is not None:
+                        # End the previous entry (exclude trailing empty lines)
+                        end_line = i - 1
+                        while end_line > entry_start and not lines[end_line].strip():
+                            end_line -= 1
+                        entries.append((entry_start, end_line))
+                    entry_start = i
+
+        # Don't forget the last entry
+        if entry_start is not None:
+            end_line = len(lines) - 1
+            while end_line > entry_start and not lines[end_line].strip():
+                end_line -= 1
+            entries.append((entry_start, end_line))
+
+        return entries
+
+    def _render_log_with_highlight(self) -> None:
+        """Render git log output with entry highlighting."""
+        if not self.git_log_output:
+            return
+
+        from rich.text import Text
+
+        lines = self.git_log_output.split("\n")
+        text = Text()
+
+        # Add header
+        text.append(f"📜 Git Log (Page {self.git_log_page + 1})\n\n", style="bold")
+
+        # Get terminal width to pad highlighted lines
+        scroll_container = self.query_one("#content-scroll", ScrollableContainer)
+        width = max(scroll_container.size.width - 4, 80)
+
+        # Get highlighted entry boundaries
+        highlight_start = -1
+        highlight_end = -1
+        if 0 <= self.git_log_highlighted_entry < len(self.git_log_entries):
+            highlight_start, highlight_end = self.git_log_entries[self.git_log_highlighted_entry]
+
+        for i, line in enumerate(lines):
+            if highlight_start <= i <= highlight_end:
+                # Highlighted entry - pad to full width
+                padded_line = line.ljust(width)
+                text.append(padded_line + "\n", style="reverse")
+            else:
+                text.append(line + "\n")
+
+        # Add navigation footer
+        text.append("\n")
+        text.append("Navigation: ", style="dim")
+        text.append("j/k", style="bold cyan")
+        text.append(" = Up/Down  ", style="dim")
+        text.append("Enter", style="bold cyan")
+        text.append(" = Show commit  ", style="dim")
+        if self.git_log_page > 0:
+            text.append("p", style="bold cyan")
+            text.append(" = Prev page  ", style="dim")
+        text.append("n", style="bold cyan")
+        text.append(" = Next page  ", style="dim")
+        text.append("ESC", style="bold cyan")
+        text.append(" = Close", style="dim")
+
+        content_display = self.query_one("#content-display", Static)
+        content_display.update(text)
+
+    def _scroll_to_log_entry(self) -> None:
+        """Scroll to keep the highlighted log entry visible."""
+        if self.git_log_highlighted_entry < 0 or not self.git_log_entries:
+            return
+
+        entry_start, _ = self.git_log_entries[self.git_log_highlighted_entry]
+        scroll_container = self.query_one("#content-scroll", ScrollableContainer)
+
+        # Add 2 for the header lines (title + empty line)
+        target_y = entry_start + 2
+
+        # Get visible region
+        visible_top = scroll_container.scroll_y
+        visible_height = scroll_container.size.height - 2
+        visible_bottom = visible_top + visible_height
+
+        # Scroll if entry is outside visible region
+        if target_y < visible_top + 2:
+            scroll_container.scroll_to(y=max(0, target_y - 2), animate=False)
+        elif target_y > visible_bottom - 2:
+            scroll_container.scroll_to(y=target_y - visible_height + 2, animate=False)
+
+    def _get_highlighted_commit_hash(self) -> str | None:
+        """Extract the commit hash from the currently highlighted log entry.
+
+        Returns:
+            The commit hash string, or None if not found
+        """
+        if self.git_log_highlighted_entry < 0 or not self.git_log_entries:
+            return None
+
+        entry_start, _ = self.git_log_entries[self.git_log_highlighted_entry]
+        lines = self.git_log_output.split("\n")
+
+        if entry_start >= len(lines):
+            return None
+
+        line = lines[entry_start]
+        # Strip graph characters and find the hash
+        stripped = line.lstrip("*| ")
+        if stripped:
+            first_word = stripped.split()[0] if stripped.split() else ""
+            # Verify it looks like a hash (7+ hex chars)
+            if len(first_word) >= 7 and all(c in "0123456789abcdef" for c in first_word.lower()):
+                return first_word
+        return None
+
+    def _show_git_commit(self) -> None:
+        """Show the detailed view of the highlighted commit."""
+        commit_hash = self._get_highlighted_commit_hash()
+        if not commit_hash:
+            self.notify("No commit selected", severity="warning")
+            return
+
+        if not self.git_root:
+            self.notify("Not in a git repository", severity="warning")
+            return
+
+        try:
+            from .git_utils import get_git_show
+
+            show_output = get_git_show(self.git_root, commit_hash)
+
+            if show_output:
+                from rich.syntax import Syntax
+                from rich.text import Text
+
+                # Create a header with commit info
+                text = Text()
+                text.append(f"📋 Commit: {commit_hash}\n\n", style="bold")
+
+                # Try to syntax highlight the diff portion
+                content_display = self.query_one("#content-display", Static)
+
+                # Use diff syntax highlighting for the output
+                syntax = Syntax(
+                    show_output,
+                    "diff",
+                    theme="monokai",
+                    line_numbers=False,
+                )
+
+                from rich.console import Group
+
+                content_display.update(Group(text, syntax))
+
+                # Update state
+                self.git_commit_viewing = True
+                self.git_commit_hash = commit_hash
+
+                # Scroll to top
+                scroll_container = self.query_one("#content-scroll", ScrollableContainer)
+                scroll_container.scroll_home(animate=False)
+
+                self.notify(f"Showing commit {commit_hash}")
+            else:
+                self.notify("Could not retrieve commit details", severity="error")
+        except Exception as e:
+            self.notify(f"Git show failed: {e}", severity="error")
 
     def _git_add_current(self) -> None:
         """Add the current file to git."""
