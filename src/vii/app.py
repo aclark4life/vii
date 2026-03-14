@@ -188,6 +188,8 @@ class Vii(App):
         self._displayed_path: Path | None = None
         # Track directory listing entries for click handling (list of paths in display order)
         self._dir_listing_entries: list[Path] = []
+        # Track highlighted entry in directory listing (-1 = none)
+        self._dir_listing_highlighted: int = -1
         self.git_log_viewing: bool = False
         self.git_log_output: str = ""  # Store log output for re-rendering
         self.git_log_entries: list[
@@ -632,15 +634,20 @@ class Vii(App):
         # Single timer - load content after navigation stops
         self._content_update_timer = self.set_timer(0.1, self._do_content_update)
 
-    def _render_directory_listing(self, path: Path) -> Text:
+    def _render_directory_listing(self, path: Path, highlight_index: int = -1) -> Text:
         """Render a directory listing for display in the content panel.
 
         Args:
             path: Path to the directory to list.
+            highlight_index: Index of entry to highlight (-1 for none).
 
         Returns:
             Rich Text object with formatted directory listing.
         """
+        # Get terminal width to pad highlighted lines
+        scroll_container = self.query_one("#content-scroll", ScrollableContainer)
+        width = max(scroll_container.size.width - 4, 80)
+
         text = Text()
         text.append(f"📁 {path.name}/\n\n", style="bold")
 
@@ -660,25 +667,56 @@ class Vii(App):
             files = [e for e in entries if e.is_file() and not e.name.startswith(".")]
             hidden = [e for e in entries if e.name.startswith(".")]
 
+            entry_index = 0
+
             # List directories first
             for d in dirs:
                 status_indicator = self._get_git_status_indicator(d)
-                text.append(status_indicator)
-                text.append("📁 ", style="bold")
-                text.append(f"{d.name}/\n", style="cyan")
+                line_content = f"{status_indicator}📁 {d.name}/"
+
+                if entry_index == highlight_index:
+                    # Highlighted entry - pad to full width
+                    padded_line = line_content.ljust(width)
+                    text.append(padded_line + "\n", style="reverse")
+                else:
+                    text.append(status_indicator)
+                    text.append("📁 ", style="bold")
+                    text.append(f"{d.name}/\n", style="cyan")
+
                 self._dir_listing_entries.append(d)
+                entry_index += 1
 
             # Then files
             for f in files:
                 status_indicator = self._get_git_status_indicator(f)
-                text.append(status_indicator)
-                text.append("📄 ")
-                text.append(f"{f.name}\n")
+                line_content = f"{status_indicator}📄 {f.name}"
+
+                if entry_index == highlight_index:
+                    # Highlighted entry - pad to full width
+                    padded_line = line_content.ljust(width)
+                    text.append(padded_line + "\n", style="reverse")
+                else:
+                    text.append(status_indicator)
+                    text.append("📄 ")
+                    text.append(f"{f.name}\n")
+
                 self._dir_listing_entries.append(f)
+                entry_index += 1
 
             # Summary of hidden files
             if hidden:
                 text.append(f"\n({len(hidden)} hidden items)", style="dim")
+
+            # Add navigation footer if there are entries
+            if self._dir_listing_entries:
+                text.append("\n")
+                text.append("Navigation: ", style="dim")
+                text.append("j/k", style="bold cyan")
+                text.append(" = Up/Down  ", style="dim")
+                text.append("Enter", style="bold cyan")
+                text.append(" = Open  ", style="dim")
+                text.append("ESC", style="bold cyan")
+                text.append(" = Back to sidebar", style="dim")
 
         except PermissionError:
             text.append("(permission denied)", style="red")
@@ -686,6 +724,35 @@ class Vii(App):
             text.append(f"(error: {e})", style="red")
 
         return text
+
+    def _render_dir_listing_with_highlight(self) -> None:
+        """Re-render the directory listing with the current highlight."""
+        if not self._displayed_path or not self._displayed_path.is_dir():
+            return
+
+        content_display = self.query_one("#content-display", Static)
+        content_display.update(
+            self._render_directory_listing(self._displayed_path, self._dir_listing_highlighted)
+        )
+
+    def _scroll_to_dir_entry(self) -> None:
+        """Scroll to keep the highlighted directory entry visible."""
+        if self._dir_listing_highlighted < 0 or not self._dir_listing_entries:
+            return
+
+        scroll_container = self.query_one("#content-scroll", ScrollableContainer)
+
+        # Add 2 for the header lines (title + empty line)
+        target_y = self._dir_listing_highlighted + 2
+
+        # Scroll to keep target visible
+        visible_height = scroll_container.size.height
+        current_scroll = scroll_container.scroll_y
+
+        if target_y < current_scroll:
+            scroll_container.scroll_to(y=target_y, animate=False)
+        elif target_y >= current_scroll + visible_height - 1:
+            scroll_container.scroll_to(y=target_y - visible_height + 2, animate=False)
 
     def _get_git_status_indicator(self, path: Path) -> str:
         """Get git status indicator for a path.
@@ -750,7 +817,10 @@ class Vii(App):
             scroll_container = self.query_one("#content-scroll", ScrollableContainer)
 
             if path.is_dir():
-                content_display.update(self._render_directory_listing(path))
+                self._dir_listing_highlighted = 0 if path.iterdir() else -1
+                content_display.update(
+                    self._render_directory_listing(path, self._dir_listing_highlighted)
+                )
                 self.original_content = ""
                 self._displayed_path = path
                 scroll_container.scroll_home(animate=False)
@@ -926,7 +996,10 @@ class Vii(App):
                 scroll_container = self.query_one("#content-scroll", ScrollableContainer)
 
                 if path.is_dir():
-                    content_display.update(self._render_directory_listing(path))
+                    self._dir_listing_highlighted = 0 if list(path.iterdir()) else -1
+                    content_display.update(
+                        self._render_directory_listing(path, self._dir_listing_highlighted)
+                    )
                     self.original_content = ""
                 elif is_image_file(path):
                     # Handle image files
@@ -1028,6 +1101,12 @@ class Vii(App):
                             self._render_blame_with_highlight()
                             # Auto-scroll to keep highlighted line visible
                             self._scroll_to_blame_line()
+                    elif self._dir_listing_entries:
+                        # Move highlighted entry down in directory listing
+                        if self._dir_listing_highlighted < len(self._dir_listing_entries) - 1:
+                            self._dir_listing_highlighted += 1
+                            self._render_dir_listing_with_highlight()
+                            self._scroll_to_dir_entry()
                     else:
                         scroll_container.scroll_down()
                 elif action_key == "up":
@@ -1044,6 +1123,12 @@ class Vii(App):
                             self._render_blame_with_highlight()
                             # Auto-scroll to keep highlighted line visible
                             self._scroll_to_blame_line()
+                    elif self._dir_listing_entries:
+                        # Move highlighted entry up in directory listing
+                        if self._dir_listing_highlighted > 0:
+                            self._dir_listing_highlighted -= 1
+                            self._render_dir_listing_with_highlight()
+                            self._scroll_to_dir_entry()
                     else:
                         scroll_container.scroll_up()
                 elif action_key == "home":
@@ -1055,6 +1140,10 @@ class Vii(App):
                         self.git_blame_highlighted_line = 0
                         self._render_blame_with_highlight()
                         scroll_container.scroll_home()
+                    elif self._dir_listing_entries:
+                        self._dir_listing_highlighted = 0
+                        self._render_dir_listing_with_highlight()
+                        scroll_container.scroll_home()
                     else:
                         scroll_container.scroll_home()
                 elif action_key == "end":
@@ -1065,6 +1154,10 @@ class Vii(App):
                     elif self.git_blame_viewing and self.git_blame_output:
                         lines = self.git_blame_output.split("\n")
                         self.git_blame_highlighted_line = len(lines) - 1
+                    elif self._dir_listing_entries:
+                        self._dir_listing_highlighted = len(self._dir_listing_entries) - 1
+                        self._render_dir_listing_with_highlight()
+                        scroll_container.scroll_end()
                         self._render_blame_with_highlight()
                         scroll_container.scroll_end()
                     else:
@@ -1190,6 +1283,12 @@ class Vii(App):
             if self.git_log_viewing and not self.git_commit_viewing:
                 # Show the highlighted commit details
                 self._show_git_commit()
+            elif self._dir_listing_entries and 0 <= self._dir_listing_highlighted < len(
+                self._dir_listing_entries
+            ):
+                # Navigate to the highlighted directory entry
+                clicked_path = self._dir_listing_entries[self._dir_listing_highlighted]
+                self._navigate_to_path(clicked_path)
             else:
                 # Switch focus back to sidebar
                 tree = self.query_one(DirectoryTree)
@@ -1618,9 +1717,12 @@ class Vii(App):
 
                 # Check if clicked on a valid entry
                 if 0 <= relative_y < len(self._dir_listing_entries):
-                    clicked_path = self._dir_listing_entries[relative_y]
-                    # Navigate to the clicked item in the directory tree
-                    self._navigate_to_path(clicked_path)
+                    self._dir_listing_highlighted = relative_y
+                    self._render_dir_listing_with_highlight()
+                    # Double-click navigates to the item
+                    if event.chain >= 2:
+                        clicked_path = self._dir_listing_entries[relative_y]
+                        self._navigate_to_path(clicked_path)
 
     def _navigate_to_path(self, path: Path) -> None:
         """Navigate to a specific path in the directory tree and update content."""
