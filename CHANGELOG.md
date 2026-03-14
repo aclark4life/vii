@@ -27,9 +27,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Click to select a commit entry
   - Double-click or `Enter` to view full commit details with `git show`
   - `ESC` returns from commit view to log, or closes log
+  - `l` key navigates back through views (commit → log → file)
   - Syntax-highlighted diff output matching content panel theme
 - Double-click on file in sidebar to open in editor (same as `e` key)
 - Notification limit: max 3 notifications visible, oldest removed when exceeded
+
+### Fixed
+- j/k navigation in left sidebar now works correctly (Textual 8.x compatibility)
+- Panel resizing via splitter drag now works correctly (Textual 8.x compatibility)
+- Content panel now loads file content when navigating (Textual 8.x compatibility)
+- Enter key in content panel correctly toggles focus back to sidebar
+- j/k keys in git commit view now scroll content instead of navigating log entries
 
 ## [0.1.0a4] - 2026-03-12
 
