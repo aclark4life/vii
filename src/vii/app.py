@@ -1060,14 +1060,17 @@ class Vii(GitHandlersMixin, App):
         if self.focused and isinstance(self.focused, Input):
             return
 
-        try:
-            tree = self.query_one(DirectoryTree)
-            scroll_container = self.query_one("#content-scroll", ScrollableContainer)
-        except Exception:
-            # Widgets not yet mounted
+        # Query widgets - use query() which returns empty list if not found
+        tree_results = self.query(DirectoryTree)
+        scroll_results = self.query("#content-scroll")
+
+        if not tree_results or not scroll_results:
             return
 
-        if not scroll_container:
+        tree = tree_results.first()
+        scroll_container = scroll_results.first()
+
+        if not tree or not scroll_container:
             return
 
         # Check if content panel has focus
