@@ -1195,10 +1195,56 @@ class Vii(App):
                 # Note: git info is NOT updated on navigation - it's expensive (subprocess calls)
                 # and doesn't change just from moving the cursor
                 self._schedule_content_update()
-        elif event.key in arrow_keys and not content_focused:
-            # Arrow keys are handled by the tree widget, but we still need to update display
-            # Use call_after_refresh to ensure the tree has processed the key first
-            self.call_after_refresh(self._schedule_content_update)
+        elif event.key in arrow_keys:
+            if content_focused:
+                # Handle arrow keys in content panel same as vi keys
+                event.prevent_default()
+                if event.key == "down":
+                    if self.git_log_viewing and self.git_log_entries:
+                        if self.git_log_highlighted_entry < len(self.git_log_entries) - 1:
+                            self.git_log_highlighted_entry += 1
+                            self._render_log_with_highlight()
+                            self._scroll_to_log_entry()
+                    elif self.git_blame_viewing and self.git_blame_output:
+                        lines = self.git_blame_output.split("\n")
+                        max_line = len(lines) - 1
+                        if self.git_blame_highlighted_line < max_line:
+                            self.git_blame_highlighted_line += 1
+                            self._render_blame_with_highlight()
+                            self._scroll_to_blame_line()
+                    elif self._dir_listing_entries:
+                        if self._dir_listing_highlighted < len(self._dir_listing_entries) - 1:
+                            self._dir_listing_highlighted += 1
+                            self._render_dir_listing_with_highlight()
+                            self._scroll_to_dir_entry()
+                    else:
+                        scroll_container.scroll_down()
+                elif event.key == "up":
+                    if self.git_log_viewing and self.git_log_entries:
+                        if self.git_log_highlighted_entry > 0:
+                            self.git_log_highlighted_entry -= 1
+                            self._render_log_with_highlight()
+                            self._scroll_to_log_entry()
+                    elif self.git_blame_viewing and self.git_blame_output:
+                        if self.git_blame_highlighted_line > 0:
+                            self.git_blame_highlighted_line -= 1
+                            self._render_blame_with_highlight()
+                            self._scroll_to_blame_line()
+                    elif self._dir_listing_entries:
+                        if self._dir_listing_highlighted > 0:
+                            self._dir_listing_highlighted -= 1
+                            self._render_dir_listing_with_highlight()
+                            self._scroll_to_dir_entry()
+                    else:
+                        scroll_container.scroll_up()
+                elif event.key == "left":
+                    scroll_container.action_scroll_left()
+                elif event.key == "right":
+                    scroll_container.action_scroll_right()
+            else:
+                # Arrow keys are handled by the tree widget, but we still need to update display
+                # Use call_after_refresh to ensure the tree has processed the key first
+                self.call_after_refresh(self._schedule_content_update)
         elif event.key in ("ctrl+f", "ctrl+d", "d"):
             # Page down (vim-style)
             event.prevent_default()
