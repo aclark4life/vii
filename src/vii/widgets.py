@@ -88,10 +88,12 @@ class VerticalSplitter(Widget):
 
     VerticalSplitter:hover {
         background: $accent;
+        pointer: ew-resize;
     }
 
     VerticalSplitter.-dragging {
         background: $accent;
+        pointer: ew-resize;
     }
     """
 
