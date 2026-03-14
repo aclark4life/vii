@@ -198,6 +198,8 @@ class Vii(App):
         self.git_blame_output: str = ""  # Store blame output for re-rendering
         self.git_blame_highlighted_line: int = -1  # Currently highlighted line (-1 = none)
         self._update_git_info()
+        # Track notification count for limiting
+        self._notification_count = 0
 
     def notify(
         self,
@@ -209,16 +211,14 @@ class Vii(App):
     ) -> None:
         """Show a notification, limiting to 3 visible at a time.
 
-        Overrides the base notify to remove older notifications when
-        more than 3 are shown.
+        Overrides the base notify to clear old notifications when
+        more than 3 would be shown.
         """
-        # Get current notifications and remove oldest if we have 3+
-        notifications = list(self.screen._notifications)
-        if len(notifications) >= 3:
-            # Remove oldest notifications to keep only 2 (new one will make 3)
-            for old_notification in notifications[: len(notifications) - 2]:
-                self.screen._notifications.remove(old_notification)
-                self.screen.refresh()
+        # Increment count and clear if we hit the limit
+        self._notification_count += 1
+        if self._notification_count > 3:
+            self.clear_notifications()
+            self._notification_count = 1
 
         # Call parent notify
         super().notify(message, title=title, severity=severity, timeout=timeout)
