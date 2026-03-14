@@ -1530,8 +1530,25 @@ class Vii(App):
             self.call_later(scroll_container.stop_animation, "scroll_x")
             self.call_later(scroll_container.stop_animation, "scroll_y")
 
+            # Handle git log entry highlighting
+            if self.git_log_viewing and self.git_log_entries and not self.git_commit_viewing:
+                # Calculate clicked line based on screen position
+                container_region = scroll_container.region
+                scroll_y = int(scroll_container.scroll_y)
+
+                # Calculate y position relative to the container content
+                # Subtract 2 for header lines (title + empty line), 2 for padding/border
+                relative_y = event.screen_y - container_region.y - 2 + scroll_y - 2
+
+                # Find which entry contains this line
+                for i, (start_line, end_line) in enumerate(self.git_log_entries):
+                    if start_line <= relative_y <= end_line:
+                        self.git_log_highlighted_entry = i
+                        self._render_log_with_highlight()
+                        break
+
             # Handle blame view line highlighting
-            if self.git_blame_viewing and self.git_blame_output:
+            elif self.git_blame_viewing and self.git_blame_output:
                 # Calculate clicked line based on screen position
                 # Get the scroll container's position on screen
                 container_region = scroll_container.region
