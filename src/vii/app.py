@@ -186,6 +186,8 @@ class Vii(App):
         self._cache_max_size = 30
         # Track currently displayed path to avoid redundant updates
         self._displayed_path: Path | None = None
+        # Track directory listing entries for click handling (list of paths in display order)
+        self._dir_listing_entries: list[Path] = []
         self.git_log_viewing: bool = False
         self.git_log_output: str = ""  # Store log output for re-rendering
         self.git_log_entries: list[
@@ -642,6 +644,9 @@ class Vii(App):
         text = Text()
         text.append(f"📁 {path.name}/\n\n", style="bold")
 
+        # Clear directory listing entries for click handling
+        self._dir_listing_entries = []
+
         try:
             # Get directory contents
             entries = sorted(path.iterdir(), key=lambda p: (not p.is_dir(), p.name.lower()))
@@ -661,6 +666,7 @@ class Vii(App):
                 text.append(status_indicator)
                 text.append("📁 ", style="bold")
                 text.append(f"{d.name}/\n", style="cyan")
+                self._dir_listing_entries.append(d)
 
             # Then files
             for f in files:
@@ -668,6 +674,7 @@ class Vii(App):
                 text.append(status_indicator)
                 text.append("📄 ")
                 text.append(f"{f.name}\n")
+                self._dir_listing_entries.append(f)
 
             # Summary of hidden files
             if hidden:
@@ -1596,6 +1603,65 @@ class Vii(App):
                 if 0 <= relative_y < len(lines):
                     self.git_blame_highlighted_line = relative_y
                     self._render_blame_with_highlight()
+
+            # Handle directory listing clicks
+            elif (
+                self._dir_listing_entries and self._displayed_path and self._displayed_path.is_dir()
+            ):
+                # Calculate clicked line based on screen position
+                container_region = scroll_container.region
+                scroll_y = int(scroll_container.scroll_y)
+
+                # Calculate y position relative to the container content
+                # Subtract 2 for header line ("📁 dirname/") and empty line, plus padding/border
+                relative_y = event.screen_y - container_region.y - 2 + scroll_y - 2
+
+                # Check if clicked on a valid entry
+                if 0 <= relative_y < len(self._dir_listing_entries):
+                    clicked_path = self._dir_listing_entries[relative_y]
+                    # Navigate to the clicked item in the directory tree
+                    self._navigate_to_path(clicked_path)
+
+    def _navigate_to_path(self, path: Path) -> None:
+        """Navigate to a specific path in the directory tree and update content."""
+        tree = self.query_one(DirectoryTree)
+
+        # Find and select the node for this path
+        def find_node(node, target_path: Path):
+            """Recursively find a node with the given path."""
+            if node.data and hasattr(node.data, "path") and node.data.path == target_path:
+                return node
+            for child in node.children:
+                result = find_node(child, target_path)
+                if result:
+                    return result
+            return None
+
+        # First ensure parent directories are expanded
+        try:
+            rel_path = path.relative_to(self.start_path)
+            parts = rel_path.parts
+            current_path = self.start_path
+
+            # Expand each parent directory
+            for part in parts[:-1]:
+                current_path = current_path / part
+                node = find_node(tree.root, current_path)
+                if node and not node.is_expanded:
+                    node.expand()
+
+            # Now find and select the target node
+            # Use call_after_refresh to ensure expansions are processed
+            def select_target():
+                target_node = find_node(tree.root, path)
+                if target_node:
+                    tree.select_node(target_node)
+                    self._schedule_content_update()
+
+            self.call_after_refresh(select_target)
+        except ValueError:
+            # Path is not relative to start_path
+            pass
 
     def action_edit_file(self) -> None:
         """Open the currently selected file in the editor (or image viewer for images)."""
