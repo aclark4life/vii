@@ -1706,7 +1706,6 @@ class Vii(GitHandlersMixin, App):
     def on_directory_tree_file_selected(self, event: DirectoryTree.FileSelected) -> None:
         """Handle file selection from the directory tree - keep focus in sidebar."""
         # Update content display but keep focus in the sidebar (debounced for rapid navigation)
-        # Note: git info is NOT updated here - it's expensive and doesn't change from file selection
         self._schedule_content_update()
         tree_results = self.query(DirectoryTree)
         if tree_results:
@@ -1716,8 +1715,12 @@ class Vii(GitHandlersMixin, App):
 
     def on_directory_tree_directory_selected(self, event: DirectoryTree.DirectorySelected) -> None:
         """Handle directory selection from the directory tree."""
-        # Note: git info is NOT updated here - it's expensive and doesn't change from navigation
-        pass
+        # Update content display (debounced for rapid navigation)
+        self._schedule_content_update()
+
+    def on_tree_node_highlighted(self, event) -> None:
+        """Handle cursor movement in the tree (including mouse clicks)."""
+        self._schedule_content_update()
 
     def on_click(self, event: events.Click) -> None:
         """Handle mouse clicks to stop scroll animations and highlight blame lines."""
@@ -1745,9 +1748,10 @@ class Vii(GitHandlersMixin, App):
                     if path.is_file():
                         self.action_edit_file()
                         return
-            # Single click updates content panel (debounced, like keyboard navigation)
+            # Single click updates content panel
             # Use call_after_refresh to ensure the tree has processed the click first
-            self.call_after_refresh(self._schedule_content_update)
+            # Then trigger update immediately (no debounce for clicks)
+            self.call_after_refresh(self._do_content_update)
 
         # If click is within the scroll container or its children
         if widget_at_click is scroll_container or scroll_container in widget_at_click.ancestors:
