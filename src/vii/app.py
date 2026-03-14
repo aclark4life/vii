@@ -198,8 +198,6 @@ class Vii(App):
         self.git_blame_output: str = ""  # Store blame output for re-rendering
         self.git_blame_highlighted_line: int = -1  # Currently highlighted line (-1 = none)
         self._update_git_info()
-        # Track notification count for limiting
-        self._notification_count = 0
 
     def notify(
         self,
@@ -211,14 +209,15 @@ class Vii(App):
     ) -> None:
         """Show a notification, limiting to 3 visible at a time.
 
-        Overrides the base notify to clear old notifications when
-        more than 3 would be shown.
+        Removes oldest notifications to keep max 3 on screen.
         """
-        # Increment count and clear if we hit the limit
-        self._notification_count += 1
-        if self._notification_count > 3:
-            self.clear_notifications()
-            self._notification_count = 1
+        from textual.widgets import Toast
+
+        # Find existing toasts and remove oldest if we have 3+
+        toasts = list(self.screen.query(Toast))
+        while len(toasts) >= 3:
+            oldest = toasts.pop(0)
+            oldest.remove()
 
         # Call parent notify
         super().notify(message, title=title, severity=severity, timeout=timeout)
