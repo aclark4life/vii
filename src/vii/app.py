@@ -1649,42 +1649,44 @@ class Vii(KeyHandlersMixin, GitHandlersMixin, App):
         except Exception:
             return
 
+        tree = self._get_tree()
+        scroll_container = self._get_scroll_container()
+
         # Check if already maximized - restore if so
         if self._sidebar_hidden:
-            # Restore sidebar (content was maximized)
+            # Restore sidebar (content was maximized) - keep focus on content
             sidebar.display = True
             splitter.display = True
             self.sidebar_width = self._sidebar_saved_width
             self._sidebar_hidden = False
-            tree = self._get_tree()
-            if tree:
-                tree.focus()
-            return
-
-        if getattr(self, "_content_hidden", False):
-            # Restore content (sidebar was maximized)
-            main_content.display = True
-            splitter.display = True
-            self._content_hidden = False
-            scroll_container = self._get_scroll_container()
             if scroll_container:
                 scroll_container.focus()
             return
 
-        # Determine which panel is focused and maximize it
-        tree = self._get_tree()
-        scroll_container = self._get_scroll_container()
+        if self._content_hidden:
+            # Restore content (sidebar was maximized) - keep focus on sidebar
+            main_content.display = True
+            splitter.display = True
+            self._content_hidden = False
+            if tree:
+                tree.focus()
+            return
 
+        # Determine which panel is focused and maximize it
         # Check if focus is in the sidebar (tree or sidebar search)
         sidebar_focused = False
         if self.focused:
-            # Walk up parent chain to see if we're in sidebar
-            widget = self.focused
-            while widget:
-                if getattr(widget, "id", None) == "sidebar":
-                    sidebar_focused = True
-                    break
-                widget = getattr(widget, "parent", None)
+            # Check if the focused widget is the tree itself
+            if tree and self.focused == tree:
+                sidebar_focused = True
+            else:
+                # Walk up parent chain to see if we're in sidebar
+                widget = self.focused
+                while widget:
+                    if getattr(widget, "id", None) == "sidebar":
+                        sidebar_focused = True
+                        break
+                    widget = getattr(widget, "parent", None)
 
         if sidebar_focused:
             # Maximize sidebar (hide content)
