@@ -13,6 +13,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Code portion syntax highlighted based on file type
   - Works with all supported languages (Python, JavaScript, Rust, Markdown, etc.)
 - Git blame now disabled for files too large to preview (>100KB)
+- Markdown syntax highlighting with tree-sitter
+  - Headings (h1-h6) in bold cyan
+  - Code spans and fenced code blocks in green
+  - List markers in yellow
+  - Emphasis (italic) and strong emphasis (bold)
 
 ## [0.1.0a5] - 2026-03-14
 

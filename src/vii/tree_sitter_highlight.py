@@ -163,6 +163,31 @@ NODE_STYLES = {
     # Decorators
     "decorator": "bold yellow",
     "@": "bold yellow",
+    # Markdown
+    "atx_heading": "bold cyan",
+    "atx_h1_marker": "bold cyan",
+    "atx_h2_marker": "bold cyan",
+    "atx_h3_marker": "bold cyan",
+    "atx_h4_marker": "bold cyan",
+    "atx_h5_marker": "bold cyan",
+    "atx_h6_marker": "bold cyan",
+    "setext_heading": "bold cyan",
+    "setext_h1_underline": "bold cyan",
+    "setext_h2_underline": "bold cyan",
+    "code_span": "green",
+    "fenced_code_block": "green",
+    "code_fence_content": "green",
+    "indented_code_block": "green",
+    "link_destination": "blue underline",
+    "uri_autolink": "blue underline",
+    "emphasis": "italic",
+    "strong_emphasis": "bold",
+    "list_marker_minus": "yellow",
+    "list_marker_plus": "yellow",
+    "list_marker_star": "yellow",
+    "list_marker_dot": "yellow",
+    "block_quote_marker": "dim italic",
+    "thematic_break": "dim",
 }
 
 
@@ -255,7 +280,20 @@ def highlight_with_tree_sitter(
 
 
 # Node types that should highlight their entire span (not just leaves)
-WHOLE_NODE_TYPES = {"string", "comment", "line_comment", "block_comment"}
+WHOLE_NODE_TYPES = {
+    "string",
+    "comment",
+    "line_comment",
+    "block_comment",
+    # Markdown
+    "atx_heading",
+    "setext_heading",
+    "code_span",
+    "fenced_code_block",
+    "indented_code_block",
+    "emphasis",
+    "strong_emphasis",
+}
 
 
 def _collect_all_highlights(node, content: str, highlights: list[tuple[int, int, str]]) -> None:
