@@ -127,6 +127,13 @@ class KeyHandlersMixin:
                 ):
                     lines = self.original_content.split("\n")
                     page_size = max(1, scroll_container.size.height - 2)
+
+                    # If no line is highlighted yet, start from the top visible line
+                    if self._content_highlighted_line < 0:
+                        # Account for header lines (2 lines: filename + empty line)
+                        current_line = max(0, int(scroll_container.scroll_y) - 2)
+                        self._content_highlighted_line = current_line
+
                     new_line = min(
                         len(lines) - 1,
                         self._content_highlighted_line + page_size,
@@ -152,6 +159,13 @@ class KeyHandlersMixin:
                     and not self._dir_listing_entries
                 ):
                     page_size = max(1, scroll_container.size.height - 2)
+
+                    # If no line is highlighted yet, start from the top visible line
+                    if self._content_highlighted_line < 0:
+                        # Account for header lines (2 lines: filename + empty line)
+                        current_line = max(0, int(scroll_container.scroll_y) - 2)
+                        self._content_highlighted_line = current_line
+
                     new_line = max(0, self._content_highlighted_line - page_size)
                     self._content_highlighted_line = new_line
                     self._render_file_content_with_highlight()
@@ -413,6 +427,14 @@ class KeyHandlersMixin:
                     self._dir_listing_highlighted += 1
                     self._render_dir_listing_with_highlight()
                     self._scroll_to_dir_entry()
+            elif self.original_content and self._displayed_path and self._displayed_path.is_file():
+                # Move highlighted line down in file content view
+                lines = self.original_content.split("\n")
+                max_line = len(lines) - 1
+                if self._content_highlighted_line < max_line:
+                    self._content_highlighted_line += 1
+                    self._render_file_content_with_highlight()
+                    self._scroll_to_content_line()
             else:
                 scroll_container.scroll_down()
         elif event.key == "up":
@@ -434,6 +456,12 @@ class KeyHandlersMixin:
                     self._dir_listing_highlighted -= 1
                     self._render_dir_listing_with_highlight()
                     self._scroll_to_dir_entry()
+            elif self.original_content and self._displayed_path and self._displayed_path.is_file():
+                # Move highlighted line up in file content view
+                if self._content_highlighted_line > 0:
+                    self._content_highlighted_line -= 1
+                    self._render_file_content_with_highlight()
+                    self._scroll_to_content_line()
             else:
                 scroll_container.scroll_up()
         elif event.key == "left":

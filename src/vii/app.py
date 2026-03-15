@@ -889,8 +889,8 @@ class Vii(KeyHandlersMixin, GitHandlersMixin, App):
                 display_width=width,
             )
             if highlighted:
-                header = Text(f"📄 {path.name}\n\n", style="bold")
-                content_display.update(Group(header, highlighted))
+                # No header - just like git blame
+                content_display.update(highlighted)
                 return
 
         # Fall back to Pygments (no line highlighting support for now)
@@ -910,7 +910,7 @@ class Vii(KeyHandlersMixin, GitHandlersMixin, App):
             return
 
         text = Text()
-        text.append(f"📄 {path.name}\n\n", style="bold")
+        # No header - just like git blame
 
         lines = content.split("\n")
         line_num_width = len(str(len(lines))) + 1
@@ -939,7 +939,7 @@ class Vii(KeyHandlersMixin, GitHandlersMixin, App):
             return
 
         text = Text()
-        text.append(f"📄 {path.name}\n\n", style="bold")
+        # No header - just like git blame
 
         lines = content.split("\n")
         line_num_width = len(str(len(lines))) + 1
@@ -969,8 +969,8 @@ class Vii(KeyHandlersMixin, GitHandlersMixin, App):
         if not scroll_container:
             return
 
-        # Add 2 for the header lines (filename + empty line)
-        target_y = self._content_highlighted_line + 2
+        # No header anymore - target is just the line number
+        target_y = self._content_highlighted_line
 
         # Scroll to keep target visible
         visible_height = scroll_container.size.height
@@ -1065,12 +1065,10 @@ class Vii(KeyHandlersMixin, GitHandlersMixin, App):
             if path in self._rendered_cache:
                 content, rendered = self._rendered_cache[path]
                 self.original_content = content
-                if rendered:
-                    content_display.update(rendered)
-                else:
-                    content_display.update(f"[bold]📄 {path.name}[/bold]\n\n{content}")
-                scroll_container.scroll_home(animate=False)
                 self._displayed_path = path
+                # Render with highlight at line 0
+                self._render_file_content_with_highlight()
+                scroll_container.scroll_home(animate=False)
                 return
 
             # Not cached - start background worker for syntax highlighting
@@ -1204,22 +1202,15 @@ class Vii(KeyHandlersMixin, GitHandlersMixin, App):
                 self.git_commit_hash = ""
                 self.git_blame_viewing = False
                 self.git_log_page = 0
+                self._displayed_path = path
 
-                # Update display - content is already rendered, just swap it in
-                content_display = self._get_content_display()
-                scroll_container = self._get_scroll_container()
-
-                if content_display:
-                    if rendered_content is not None:
-                        content_display.update(rendered_content)
-                    else:
-                        # Plain text display
-                        content_display.update(f"[bold]📄 {path.name}[/bold]\n\n{content}")
+                # Render with highlight at line 0
+                self._render_file_content_with_highlight()
 
                 # Reset scroll position
+                scroll_container = self._get_scroll_container()
                 if scroll_container:
                     scroll_container.scroll_home(animate=False)
-                self._displayed_path = path
             except Exception:
                 pass
 
@@ -1698,10 +1689,29 @@ class Vii(KeyHandlersMixin, GitHandlersMixin, App):
                         clicked_path = self._dir_listing_entries[relative_y]
                         self._navigate_to_path(clicked_path)
 
-            # Handle file content view - double-click opens editor
-            elif self._displayed_path and self._displayed_path.is_file():
-                if event.chain >= 2:
-                    self.action_edit_file()
+            # Handle file content view - click to highlight line, double-click opens editor
+            elif self._displayed_path and self._displayed_path.is_file() and self.original_content:
+                container_region = scroll_container.region
+                scroll_y = int(scroll_container.scroll_y)
+
+                # Use EXACT same formula as git blame (no header now)
+                relative_y = event.screen_y - container_region.y - 2 + scroll_y
+
+                lines = self.original_content.split("\n")
+
+                # Validate line number
+                if 0 <= relative_y < len(lines):
+                    # Focus the content panel if not already focused
+                    if not scroll_container.has_focus:
+                        scroll_container.focus()
+
+                    # Update highlighted line
+                    self._content_highlighted_line = relative_y
+                    self._render_file_content_with_highlight()
+
+                    # Double-click opens editor
+                    if event.chain >= 2:
+                        self.action_edit_file()
 
     def _navigate_to_path(self, path: Path) -> None:
         """Navigate to a specific path in the directory tree and update content."""
