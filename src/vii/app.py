@@ -210,6 +210,8 @@ class Vii(KeyHandlersMixin, GitHandlersMixin, App):
         self._sidebar_hidden: bool = False
         self._content_hidden: bool = False
         self._sidebar_saved_width: int = 30  # Width to restore when un-maximizing
+        # Track highlighted line in file content view (-1 = none, cursor-based highlighting)
+        self._content_highlighted_line: int = -1
         self._update_git_info()
 
     def notify(
@@ -859,6 +861,126 @@ class Vii(KeyHandlersMixin, GitHandlersMixin, App):
         elif target_y >= current_scroll + visible_height - 1:
             scroll_container.scroll_to(y=target_y - visible_height + 2, animate=False)
 
+    def _render_file_content_with_highlight(self) -> None:
+        """Re-render the file content with the current line highlight."""
+        if not self._displayed_path or not self._displayed_path.is_file():
+            return
+
+        if not self.original_content:
+            return
+
+        content_display = self._get_content_display()
+        scroll_container = self._get_scroll_container()
+        if not content_display or not scroll_container:
+            return
+
+        path = self._displayed_path
+        content = self.original_content
+        width = max(scroll_container.size.width - 4, 80)
+
+        # Try tree-sitter first
+        ts_language = get_language_for_file(path)
+        if ts_language:
+            highlighted = highlight_with_tree_sitter(
+                content,
+                ts_language,
+                line_numbers=True,
+                highlight_line=self._content_highlighted_line,
+                display_width=width,
+            )
+            if highlighted:
+                header = Text(f"📄 {path.name}\n\n", style="bold")
+                content_display.update(Group(header, highlighted))
+                return
+
+        # Fall back to Pygments (no line highlighting support for now)
+        # Build highlighted content manually
+        lexer = get_syntax_lexer(path)
+        if lexer and not content.startswith("[dim]"):
+            # For Pygments, we need to build our own highlighted output
+            self._render_file_with_pygments_highlight(path, content, width)
+        else:
+            # Plain text with line highlighting
+            self._render_plain_file_with_highlight(path, content, width)
+
+    def _render_file_with_pygments_highlight(self, path: Path, content: str, width: int) -> None:
+        """Render file with Pygments syntax highlighting and line highlight."""
+        content_display = self._get_content_display()
+        if not content_display:
+            return
+
+        text = Text()
+        text.append(f"📄 {path.name}\n\n", style="bold")
+
+        lines = content.split("\n")
+        line_num_width = len(str(len(lines))) + 1
+
+        for i, line in enumerate(lines):
+            is_highlighted = i == self._content_highlighted_line
+            line_num_style = "reverse dim" if is_highlighted else "dim"
+            text.append(f"{i + 1:>{line_num_width}} │ ", style=line_num_style)
+
+            if is_highlighted:
+                # Pad line and apply reverse style
+                padded_line = line.ljust(width - line_num_width - 3)
+                text.append(padded_line, style="reverse")
+            else:
+                text.append(line)
+
+            if i < len(lines) - 1:
+                text.append("\n")
+
+        content_display.update(text)
+
+    def _render_plain_file_with_highlight(self, path: Path, content: str, width: int) -> None:
+        """Render plain file content with line highlight."""
+        content_display = self._get_content_display()
+        if not content_display:
+            return
+
+        text = Text()
+        text.append(f"📄 {path.name}\n\n", style="bold")
+
+        lines = content.split("\n")
+        line_num_width = len(str(len(lines))) + 1
+
+        for i, line in enumerate(lines):
+            is_highlighted = i == self._content_highlighted_line
+            line_num_style = "reverse dim" if is_highlighted else "dim"
+            text.append(f"{i + 1:>{line_num_width}} │ ", style=line_num_style)
+
+            if is_highlighted:
+                padded_line = line.ljust(width - line_num_width - 3)
+                text.append(padded_line, style="reverse")
+            else:
+                text.append(line)
+
+            if i < len(lines) - 1:
+                text.append("\n")
+
+        content_display.update(text)
+
+    def _scroll_to_content_line(self) -> None:
+        """Scroll to keep the highlighted content line visible."""
+        if self._content_highlighted_line < 0:
+            return
+
+        scroll_container = self._get_scroll_container()
+        if not scroll_container:
+            return
+
+        # Add 2 for the header lines (filename + empty line)
+        target_y = self._content_highlighted_line + 2
+
+        # Scroll to keep target visible
+        visible_height = scroll_container.size.height
+        current_scroll = scroll_container.scroll_y
+
+        if target_y < current_scroll:
+            scroll_container.scroll_to(y=target_y, animate=False)
+        elif target_y >= current_scroll + visible_height - 1:
+            scroll_container.scroll_to(y=target_y - visible_height + 2, animate=False)
+
     def _get_git_status_indicator(self, path: Path) -> str:
         """Get git status indicator for a path.
 
@@ -936,6 +1058,8 @@ class Vii(KeyHandlersMixin, GitHandlersMixin, App):
             # Not a directory - clear directory listing state
             self._dir_listing_entries = []
             self._dir_listing_highlighted = -1
+            # Reset content line highlight for new file
+            self._content_highlighted_line = 0
 
             # Use cached content if available (includes syntax highlighting)
             if path in self._rendered_cache:
@@ -1573,6 +1697,11 @@ class Vii(KeyHandlersMixin, GitHandlersMixin, App):
                     if event.chain >= 2:
                         clicked_path = self._dir_listing_entries[relative_y]
                         self._navigate_to_path(clicked_path)
+
+            # Handle file content view - double-click opens editor
+            elif self._displayed_path and self._displayed_path.is_file():
+                if event.chain >= 2:
+                    self.action_edit_file()
 
     def _navigate_to_path(self, path: Path) -> None:
         """Navigate to a specific path in the directory tree and update content."""

@@ -201,10 +201,19 @@ def highlight_with_tree_sitter(
     content: str,
     language: str,
     line_numbers: bool = True,
+    highlight_line: int = -1,
+    display_width: int = 80,
 ) -> Text | None:
     """Highlight code using tree-sitter.
 
     Returns a Rich Text object with syntax highlighting, or None if parsing fails.
+
+    Args:
+        content: The source code to highlight
+        language: The tree-sitter language name
+        line_numbers: Whether to show line numbers
+        highlight_line: Line number (0-based) to highlight with reverse style, -1 for none
+        display_width: Width to pad highlighted lines to
     """
     try:
         from tree_sitter_language_pack import get_parser
@@ -254,18 +263,34 @@ def highlight_with_tree_sitter(
 
     # Build the output efficiently using chunks
     current_line = 0
+    is_highlighted = current_line == highlight_line
+    line_start_pos = len(text)  # Track where line content starts
+
     if line_numbers:
-        text.append(f"{1:>{line_num_width}} │ ", style="dim")
+        line_num_style = "reverse dim" if is_highlighted else "dim"
+        text.append(f"{1:>{line_num_width}} │ ", style=line_num_style)
 
     # Group consecutive characters with the same style
     i = 0
     while i < len(content):
         char = content[i]
         if char == "\n":
+            # If highlighted line, pad to width and apply reverse style
+            if is_highlighted:
+                # Calculate how much padding needed
+                current_len = len(text) - line_start_pos
+                padding_needed = max(0, display_width - current_len - line_num_width - 3)
+                if padding_needed > 0:
+                    text.append(" " * padding_needed)
+                # Apply reverse style to the line content (after line number)
+                text.stylize("reverse", line_start_pos)
             text.append("\n")
             current_line += 1
+            is_highlighted = current_line == highlight_line
             if line_numbers and i < len(content) - 1:
-                text.append(f"{current_line + 1:>{line_num_width}} │ ", style="dim")
+                line_num_style = "reverse dim" if is_highlighted else "dim"
+                text.append(f"{current_line + 1:>{line_num_width}} │ ", style=line_num_style)
+            line_start_pos = len(text)
             i += 1
         else:
             # Find run of characters with same style (not including newlines)
@@ -275,6 +300,14 @@ def highlight_with_tree_sitter(
                 j += 1
             text.append(content[i:j], style=style)
             i = j
+
+    # Handle last line if highlighted (no trailing newline)
+    if is_highlighted and current_line == highlight_line:
+        current_len = len(text) - line_start_pos
+        padding_needed = max(0, display_width - current_len - line_num_width - 3)
+        if padding_needed > 0:
+            text.append(" " * padding_needed)
+        text.stylize("reverse", line_start_pos)
 
     return text
 

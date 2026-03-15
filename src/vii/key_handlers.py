@@ -35,6 +35,9 @@ class KeyHandlersMixin:
         search_matches: list[int]
         _dir_listing_entries: list[Path]
         _dir_listing_highlighted: int
+        _content_highlighted_line: int
+        _displayed_path: Path | None
+        original_content: str
         sidebar_search_query: str
         sidebar_search_matches: list[Any]
         sidebar_current_match_index: int
@@ -49,6 +52,8 @@ class KeyHandlersMixin:
         def _scroll_to_blame_line(self) -> None: ...
         def _render_dir_listing_with_highlight(self) -> None: ...
         def _scroll_to_dir_entry(self) -> None: ...
+        def _render_file_content_with_highlight(self) -> None: ...
+        def _scroll_to_content_line(self) -> None: ...
         def _show_content_search(self) -> None: ...
         def _goto_next_match(self) -> None: ...
         def _goto_previous_match(self) -> None: ...
@@ -219,6 +224,14 @@ class KeyHandlersMixin:
                     self._dir_listing_highlighted += 1
                     self._render_dir_listing_with_highlight()
                     self._scroll_to_dir_entry()
+            elif self.original_content and self._displayed_path and self._displayed_path.is_file():
+                # Move highlighted line down in file content view
+                lines = self.original_content.split("\n")
+                max_line = len(lines) - 1
+                if self._content_highlighted_line < max_line:
+                    self._content_highlighted_line += 1
+                    self._render_file_content_with_highlight()
+                    self._scroll_to_content_line()
             else:
                 scroll_container.scroll_down()
         elif action_key == "up":
@@ -243,6 +256,12 @@ class KeyHandlersMixin:
                     self._dir_listing_highlighted -= 1
                     self._render_dir_listing_with_highlight()
                     self._scroll_to_dir_entry()
+            elif self.original_content and self._displayed_path and self._displayed_path.is_file():
+                # Move highlighted line up in file content view
+                if self._content_highlighted_line > 0:
+                    self._content_highlighted_line -= 1
+                    self._render_file_content_with_highlight()
+                    self._scroll_to_content_line()
             else:
                 scroll_container.scroll_up()
         elif action_key == "home":
@@ -260,6 +279,10 @@ class KeyHandlersMixin:
             elif self._dir_listing_entries:
                 self._dir_listing_highlighted = 0
                 self._render_dir_listing_with_highlight()
+                scroll_container.scroll_home()
+            elif self.original_content and self._displayed_path and self._displayed_path.is_file():
+                self._content_highlighted_line = 0
+                self._render_file_content_with_highlight()
                 scroll_container.scroll_home()
             else:
                 scroll_container.scroll_home()
@@ -279,6 +302,11 @@ class KeyHandlersMixin:
             elif self._dir_listing_entries:
                 self._dir_listing_highlighted = len(self._dir_listing_entries) - 1
                 self._render_dir_listing_with_highlight()
+                scroll_container.scroll_end()
+            elif self.original_content and self._displayed_path and self._displayed_path.is_file():
+                lines = self.original_content.split("\n")
+                self._content_highlighted_line = len(lines) - 1
+                self._render_file_content_with_highlight()
                 scroll_container.scroll_end()
             else:
                 scroll_container.scroll_end()
@@ -414,9 +442,13 @@ class KeyHandlersMixin:
             self.current_match_index = -1
             self._update_content_display()
         else:
-            # Switch focus back to sidebar
+            # Switch focus back to sidebar and remove line highlight
             event.prevent_default()
             tree.focus()
+            # Re-render file content without highlight
+            if self.original_content and self._displayed_path and self._displayed_path.is_file():
+                self._content_highlighted_line = -1
+                self._update_content_display()
 
     def action_cursor_down(self) -> None:
         """Move cursor down in tree or scroll content."""
@@ -558,8 +590,14 @@ class KeyHandlersMixin:
                     else:
                         tree.cursor_node.expand()
                 else:
-                    # For files, switch focus to content panel
+                    # For files, switch focus to content panel and show line highlight
                     scroll_container.focus()
+                    if (
+                        self.original_content
+                        and self._displayed_path
+                        and self._displayed_path.is_file()
+                    ):
+                        self._render_file_content_with_highlight()
             else:
                 # No node selected, switch focus to content panel
                 scroll_container.focus()
