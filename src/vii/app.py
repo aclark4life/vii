@@ -1406,32 +1406,9 @@ class Vii(KeyHandlersMixin, GitHandlersMixin, App):
 
     def _clear_search_highlights(self) -> None:
         """Remove search highlighting from content and restore original display."""
-        if self.original_content:
-            content_display = self._get_content_display()
-            tree = self._get_tree()
-            if tree and tree.cursor_node and tree.cursor_node.data:
-                path = tree.cursor_node.data.path
-                if path.is_file():
-                    content = self.original_content
-                    # Check if we can syntax highlight
-                    lexer = get_syntax_lexer(path)
-                    if content_display:
-                        if lexer and not content.startswith("[dim]"):
-                            # Use syntax highlighting with theme-aware color scheme
-                            syntax = Syntax(
-                                content,
-                                lexer,
-                                theme=get_syntax_theme(self.theme),
-                                line_numbers=True,
-                            )
-                            # Combine header and syntax
-                            header = Text(f"📄 {path.name}\n\n", style="bold")
-                            content_display.update(Group(header, syntax))
-                        else:
-                            # Plain text display
-                            content_display.update(
-                                f"[bold]📄 {path.name}[/bold]\n\n{self.original_content}"
-                            )
+        if self.original_content and self._displayed_path and self._displayed_path.is_file():
+            # Just re-render the file content with the current highlight
+            self._render_file_content_with_highlight()
 
     def _perform_search(self, query: str) -> None:
         """Perform search and highlight matches."""
@@ -1491,18 +1468,19 @@ class Vii(KeyHandlersMixin, GitHandlersMixin, App):
 
         # Build Rich Text object with highlighting and line numbers
         text = Text()
-        text.append(f"📄 {path.name}\n\n", style="bold")
+        # No header - just like git blame
 
         # Styles for highlighting
         current_style = Style(color="black", bgcolor="bright_green")
         other_style = Style(color="black", bgcolor="yellow")
 
         lines = content.split("\n")
+        line_num_width = len(str(len(lines))) + 1
         global_match_count = 0
 
-        for line_num, line in enumerate(lines, 1):
-            # Add line number
-            text.append(f"{line_num:4d} ", style="dim")
+        for line_num, line in enumerate(lines):
+            # Add line number (1-based display)
+            text.append(f"{line_num + 1:>{line_num_width}} │ ", style="dim")
 
             last_end = 0
 
@@ -1522,7 +1500,7 @@ class Vii(KeyHandlersMixin, GitHandlersMixin, App):
 
             # Add remaining text in line
             text.append(line[last_end:])
-            if line_num < len(lines):
+            if line_num < len(lines) - 1:
                 text.append("\n")
 
         content_display = self._get_content_display()
@@ -1537,12 +1515,19 @@ class Vii(KeyHandlersMixin, GitHandlersMixin, App):
         if not scroll_container:
             return
 
-        # Estimate line height and scroll to match
+        # Scroll to the match line (no header offset needed)
         match_line = self.search_matches[self.current_match_index]
-        # Add 2 for the header (icon + filename + blank line)
-        target_line = match_line + 3
-        # Scroll to approximate position
-        scroll_container.scroll_to(y=target_line, animate=self._config.animate_scroll)
+
+        # Scroll to keep target visible (similar to _scroll_to_content_line)
+        visible_height = scroll_container.size.height
+        current_scroll = scroll_container.scroll_y
+
+        if match_line < current_scroll:
+            scroll_container.scroll_to(y=match_line, animate=self._config.animate_scroll)
+        elif match_line >= current_scroll + visible_height - 1:
+            scroll_container.scroll_to(
+                y=match_line - visible_height + 2, animate=self._config.animate_scroll
+            )
 
     def _goto_next_match(self) -> None:
         """Go to the next search match."""
