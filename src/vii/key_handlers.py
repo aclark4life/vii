@@ -116,14 +116,48 @@ class KeyHandlersMixin:
             # Page down (vim-style)
             event.prevent_default()
             if content_focused:
-                scroll_container.scroll_page_down()
+                # Move cursor by page in file content view
+                if (
+                    self.original_content
+                    and self._displayed_path
+                    and self._displayed_path.is_file()
+                    and not self.git_log_viewing
+                    and not self.git_blame_viewing
+                    and not self._dir_listing_entries
+                ):
+                    lines = self.original_content.split("\n")
+                    page_size = max(1, scroll_container.size.height - 2)
+                    new_line = min(
+                        len(lines) - 1,
+                        self._content_highlighted_line + page_size,
+                    )
+                    self._content_highlighted_line = new_line
+                    self._render_file_content_with_highlight()
+                    self._scroll_to_content_line()
+                else:
+                    scroll_container.scroll_page_down()
             else:
                 tree.action_page_down()
         elif event.key in ("ctrl+b", "ctrl+u", "u"):
             # Page up (vim-style)
             event.prevent_default()
             if content_focused:
-                scroll_container.scroll_page_up()
+                # Move cursor by page in file content view
+                if (
+                    self.original_content
+                    and self._displayed_path
+                    and self._displayed_path.is_file()
+                    and not self.git_log_viewing
+                    and not self.git_blame_viewing
+                    and not self._dir_listing_entries
+                ):
+                    page_size = max(1, scroll_container.size.height - 2)
+                    new_line = max(0, self._content_highlighted_line - page_size)
+                    self._content_highlighted_line = new_line
+                    self._render_file_content_with_highlight()
+                    self._scroll_to_content_line()
+                else:
+                    scroll_container.scroll_page_up()
             else:
                 tree.action_page_up()
         elif content_focused and event.key == "/":
