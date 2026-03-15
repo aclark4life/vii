@@ -1667,6 +1667,8 @@ class Vii(KeyHandlersMixin, GitHandlersMixin, App):
             # Restore content (sidebar was maximized) - keep focus on sidebar
             main_content.display = True
             splitter.display = True
+            # Restore sidebar to previous width
+            self.sidebar_width = self._sidebar_saved_width
             self._content_hidden = False
             if tree:
                 tree.focus()
@@ -1689,9 +1691,12 @@ class Vii(KeyHandlersMixin, GitHandlersMixin, App):
                     widget = getattr(widget, "parent", None)
 
         if sidebar_focused:
-            # Maximize sidebar (hide content)
+            # Maximize sidebar (hide content, expand sidebar to full width)
+            self._sidebar_saved_width = self.sidebar_width
             main_content.display = False
             splitter.display = False
+            # Set sidebar to full screen width
+            sidebar.styles.width = "100%"
             self._content_hidden = True
             if tree:
                 tree.focus()
