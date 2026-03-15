@@ -206,8 +206,9 @@ class Vii(KeyHandlersMixin, GitHandlersMixin, App):
         self.git_blame_output: str = ""  # Store blame output for re-rendering
         self.git_blame_highlighted_line: int = -1  # Currently highlighted line (-1 = none)
         self.git_blame_file_path: Path | None = None  # File being blamed (for syntax highlighting)
-        # Sidebar maximize state
+        # Panel maximize state
         self._sidebar_hidden: bool = False
+        self._content_hidden: bool = False
         self._sidebar_saved_width: int = 30  # Width to restore when un-maximizing
         self._update_git_info()
 
@@ -1640,31 +1641,64 @@ class Vii(KeyHandlersMixin, GitHandlersMixin, App):
             self._open_shell(self.start_path)
 
     def action_toggle_maximize(self) -> None:
-        """Toggle maximizing the content panel (hide/show sidebar)."""
+        """Toggle maximizing the focused panel (hide the other panel)."""
         try:
             sidebar = self.query_one("#sidebar")
+            main_content = self.query_one("#main-content")
             splitter = self.query_one("#splitter")
         except Exception:
             return
 
+        # Check if already maximized - restore if so
         if self._sidebar_hidden:
-            # Restore sidebar
+            # Restore sidebar (content was maximized)
             sidebar.display = True
             splitter.display = True
             self.sidebar_width = self._sidebar_saved_width
             self._sidebar_hidden = False
-            # Focus sidebar
             tree = self._get_tree()
             if tree:
                 tree.focus()
+            return
+
+        if getattr(self, "_content_hidden", False):
+            # Restore content (sidebar was maximized)
+            main_content.display = True
+            splitter.display = True
+            self._content_hidden = False
+            scroll_container = self._get_scroll_container()
+            if scroll_container:
+                scroll_container.focus()
+            return
+
+        # Determine which panel is focused and maximize it
+        tree = self._get_tree()
+        scroll_container = self._get_scroll_container()
+
+        # Check if focus is in the sidebar (tree or sidebar search)
+        sidebar_focused = False
+        if self.focused:
+            # Walk up parent chain to see if we're in sidebar
+            widget = self.focused
+            while widget:
+                if getattr(widget, "id", None) == "sidebar":
+                    sidebar_focused = True
+                    break
+                widget = getattr(widget, "parent", None)
+
+        if sidebar_focused:
+            # Maximize sidebar (hide content)
+            main_content.display = False
+            splitter.display = False
+            self._content_hidden = True
+            if tree:
+                tree.focus()
         else:
-            # Hide sidebar (maximize content)
+            # Maximize content (hide sidebar)
             self._sidebar_saved_width = self.sidebar_width
             sidebar.display = False
             splitter.display = False
             self._sidebar_hidden = True
-            # Focus content panel
-            scroll_container = self._get_scroll_container()
             if scroll_container:
                 scroll_container.focus()
 
