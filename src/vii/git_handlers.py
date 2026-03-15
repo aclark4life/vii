@@ -1,5 +1,6 @@
 """Git-related handlers for the vii application."""
 
+import re
 import subprocess
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
@@ -9,7 +10,7 @@ from rich.syntax import Syntax
 from rich.text import Text
 from textual.command import Hits
 
-from vii.content import get_syntax_theme
+from vii.content import get_syntax_lexer, get_syntax_theme
 
 if TYPE_CHECKING:
     from textual.screen import Screen
@@ -32,6 +33,7 @@ class GitHandlersMixin:
     - git_blame_output: str
     - git_blame_viewing: bool
     - git_blame_highlighted_line: int
+    - git_blame_file_path: Path | None
     - theme: str
     """
 
@@ -48,6 +50,7 @@ class GitHandlersMixin:
     git_commit_hash: str
     git_blame_output: str
     git_blame_viewing: bool
+    git_blame_file_path: Path | None
     git_blame_highlighted_line: int
     theme: str
 
@@ -498,6 +501,16 @@ class GitHandlersMixin:
             self.notify("Cannot blame a directory", severity="warning")
             return
 
+        # Check file size - don't blame files that are too large to preview
+        # Uses same limit as content.read_file_content (100KB)
+        try:
+            file_size = path.stat().st_size
+            if file_size > 100000:
+                self.notify(f"File too large for blame ({file_size:,} bytes)", severity="warning")
+                return
+        except OSError:
+            pass  # If we can't stat, let git blame try anyway
+
         try:
             from .git_utils import get_git_blame_file
 
@@ -505,9 +518,10 @@ class GitHandlersMixin:
             blame_output = get_git_blame_file(self.git_root, str(rel_path))
 
             if blame_output:
-                # Store blame output for re-rendering with highlights
+                # Store blame output and file path for re-rendering with highlights
                 self.git_blame_output = blame_output
                 self.git_blame_highlighted_line = 0  # Start at first line
+                self.git_blame_file_path = path  # Store path for syntax highlighting
 
                 # Display blame in content panel
                 self._render_blame_with_highlight()
@@ -527,7 +541,7 @@ class GitHandlersMixin:
             self.notify(f"Git blame failed: {e}", severity="error")
 
     def _render_blame_with_highlight(self) -> None:
-        """Render git blame output with optional line highlighting."""
+        """Render git blame output with optional line highlighting and syntax highlighting."""
         if not self.git_blame_output:
             return
 
@@ -538,13 +552,68 @@ class GitHandlersMixin:
         scroll_container = self._get_scroll_container()
         width = max(scroll_container.size.width - 4, 80) if scroll_container else 80
 
+        # Get syntax highlighting info for the file
+        lexer = None
+        syntax_theme = get_syntax_theme(self.theme)
+        if self.git_blame_file_path:
+            lexer = get_syntax_lexer(self.git_blame_file_path)
+
+        # Regex to parse git blame output: hash [filename] (author date line_num) code
+        # e.g.: "abc123de src/file.py (John Doe   2024-01-15  10) some code here"
+        # The [^)]+ matches everything up to and including the closing paren
+        blame_pattern = re.compile(r"^(\^?[a-f0-9]+[^)]+\)\s?)(.*)")
+
         for i, line in enumerate(lines):
-            if i == self.git_blame_highlighted_line:
-                # Highlighted line - pad to full width
-                padded_line = line.ljust(width)
-                text.append(padded_line + "\n", style="reverse")
+            is_highlighted = i == self.git_blame_highlighted_line
+
+            # Try to parse blame line into metadata and code
+            match = blame_pattern.match(line)
+            if match and lexer:
+                blame_meta = match.group(1)  # hash (author date line) part
+                code_part = match.group(2)  # actual code
+
+                # Add blame metadata with dim style
+                if is_highlighted:
+                    text.append(blame_meta, style="reverse dim")
+                else:
+                    text.append(blame_meta, style="dim")
+
+                # Syntax highlight the code portion
+                if code_part:
+                    # Use Rich's Syntax to get highlighted text for just this line
+                    syntax = Syntax(
+                        code_part,
+                        lexer,
+                        theme=syntax_theme,
+                        line_numbers=False,
+                        word_wrap=False,
+                    )
+                    # Extract the highlighted text from Syntax
+                    highlighted_text = syntax.highlight(code_part)
+
+                    if is_highlighted:
+                        # Apply reverse style on top of syntax highlighting
+                        # Pad to full width
+                        remaining_width = max(0, width - len(blame_meta) - len(code_part))
+                        highlighted_text.append(" " * remaining_width)
+                        # Use stylize to overlay reverse on the entire highlighted text
+                        highlighted_text.stylize("reverse")
+                        text.append_text(highlighted_text)
+                    else:
+                        text.append_text(highlighted_text)
+                elif is_highlighted:
+                    # Empty code part but highlighted - pad the line
+                    remaining_width = max(0, width - len(blame_meta))
+                    text.append(" " * remaining_width, style="reverse")
+
+                text.append("\n")
             else:
-                text.append(line + "\n")
+                # Fallback: render without syntax highlighting
+                if is_highlighted:
+                    padded_line = line.ljust(width)
+                    text.append(padded_line + "\n", style="reverse")
+                else:
+                    text.append(line + "\n")
 
         content_display = self._get_content_display()
         if content_display:

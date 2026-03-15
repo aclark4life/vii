@@ -203,6 +203,7 @@ class Vii(KeyHandlersMixin, GitHandlersMixin, App):
         self.git_blame_viewing: bool = False
         self.git_blame_output: str = ""  # Store blame output for re-rendering
         self.git_blame_highlighted_line: int = -1  # Currently highlighted line (-1 = none)
+        self.git_blame_file_path: Path | None = None  # File being blamed (for syntax highlighting)
         self._update_git_info()
 
     def notify(
@@ -1640,6 +1641,7 @@ class Vii(KeyHandlersMixin, GitHandlersMixin, App):
             self.git_blame_viewing = False
             self.git_blame_output = ""
             self.git_blame_highlighted_line = -1
+            self.git_blame_file_path = None
             self._update_content_display()
             # Get the current file name for the notification
             tree = self._get_tree()

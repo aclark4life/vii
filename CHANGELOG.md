@@ -5,6 +5,15 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Added
+- Syntax highlighting for code portions in git blame view
+  - Blame metadata (commit, author, date) shown in dim style
+  - Code portion syntax highlighted based on file type
+  - Works with all supported languages (Python, JavaScript, Rust, Markdown, etc.)
+- Git blame now disabled for files too large to preview (>100KB)
+
 ## [0.1.0a5] - 2026-03-14
 
 ### Added
