@@ -1419,13 +1419,13 @@ class Vii(KeyHandlersMixin, GitHandlersMixin, App):
             return
 
         self.search_query = query
-        tree = self._get_tree()
-        if not tree or not (tree.cursor_node and tree.cursor_node.data):
+
+        # Use the currently displayed path instead of tree cursor
+        if not self._displayed_path or not self._displayed_path.is_file():
+            self.notify("No file is currently displayed", severity="warning")
             return
 
-        path = tree.cursor_node.data.path
-        if not path.is_file():
-            return
+        path = self._displayed_path
 
         # Get the original content
         content = read_file_content(path)
