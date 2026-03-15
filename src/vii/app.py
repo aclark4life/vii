@@ -1667,7 +1667,8 @@ class Vii(KeyHandlersMixin, GitHandlersMixin, App):
             # Restore content (sidebar was maximized) - keep focus on sidebar
             main_content.display = True
             splitter.display = True
-            # Restore sidebar to previous width
+            # Restore sidebar to previous width (directly set style since we used 100%)
+            sidebar.styles.width = f"{self._sidebar_saved_width}"
             self.sidebar_width = self._sidebar_saved_width
             self._content_hidden = False
             if tree:
