@@ -174,7 +174,7 @@ class KeyHandlersMixin:
                     scroll_container.scroll_page_up()
             else:
                 tree.action_page_up()
-        elif content_focused and event.key == "/":
+        elif content_focused and event.key == "slash":
             # Open content search
             event.prevent_default()
             self._show_content_search()
