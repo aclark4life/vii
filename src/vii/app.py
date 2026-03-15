@@ -145,6 +145,8 @@ class Vii(KeyHandlersMixin, GitHandlersMixin, App):
         Binding("enter", "select_or_toggle_focus", "Select", show=False, priority=True),
         # Git bindings
         Binding("b", "git_blame", "Blame"),
+        # Panel toggle
+        Binding("m", "toggle_maximize", "Max"),
         # Arrow keys still work but hidden from footer
         Binding("down", "cursor_down", "Down", show=False),
         Binding("up", "cursor_up", "Up", show=False),
@@ -204,6 +206,9 @@ class Vii(KeyHandlersMixin, GitHandlersMixin, App):
         self.git_blame_output: str = ""  # Store blame output for re-rendering
         self.git_blame_highlighted_line: int = -1  # Currently highlighted line (-1 = none)
         self.git_blame_file_path: Path | None = None  # File being blamed (for syntax highlighting)
+        # Sidebar maximize state
+        self._sidebar_hidden: bool = False
+        self._sidebar_saved_width: int = 30  # Width to restore when un-maximizing
         self._update_git_info()
 
     def notify(
@@ -1633,6 +1638,35 @@ class Vii(KeyHandlersMixin, GitHandlersMixin, App):
         else:
             # Fall back to start_path if no node is selected
             self._open_shell(self.start_path)
+
+    def action_toggle_maximize(self) -> None:
+        """Toggle maximizing the content panel (hide/show sidebar)."""
+        try:
+            sidebar = self.query_one("#sidebar")
+            splitter = self.query_one("#splitter")
+        except Exception:
+            return
+
+        if self._sidebar_hidden:
+            # Restore sidebar
+            sidebar.display = True
+            splitter.display = True
+            self.sidebar_width = self._sidebar_saved_width
+            self._sidebar_hidden = False
+            # Focus sidebar
+            tree = self._get_tree()
+            if tree:
+                tree.focus()
+        else:
+            # Hide sidebar (maximize content)
+            self._sidebar_saved_width = self.sidebar_width
+            sidebar.display = False
+            splitter.display = False
+            self._sidebar_hidden = True
+            # Focus content panel
+            scroll_container = self._get_scroll_container()
+            if scroll_container:
+                scroll_container.focus()
 
     def action_git_blame(self) -> None:
         """Toggle git blame for the current file."""

@@ -18,6 +18,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Code spans and fenced code blocks in green
   - List markers in yellow
   - Emphasis (italic) and strong emphasis (bold)
+- Maximize content panel with `m` key (hides sidebar and splitter)
+  - Press `m` again to restore sidebar
 
 ## [0.1.0a5] - 2026-03-14
 
