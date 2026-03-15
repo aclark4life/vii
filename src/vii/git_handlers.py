@@ -590,6 +590,8 @@ class GitHandlersMixin:
                     )
                     # Extract the highlighted text from Syntax
                     highlighted_text = syntax.highlight(code_part)
+                    # Remove trailing newline that Syntax.highlight() adds
+                    highlighted_text.rstrip()
 
                     if is_highlighted:
                         # Apply reverse style on top of syntax highlighting
@@ -598,15 +600,14 @@ class GitHandlersMixin:
                         highlighted_text.append(" " * remaining_width)
                         # Use stylize to overlay reverse on the entire highlighted text
                         highlighted_text.stylize("reverse")
-                        text.append_text(highlighted_text)
-                    else:
-                        text.append_text(highlighted_text)
+                    text.append_text(highlighted_text)
+                    text.append("\n")
                 elif is_highlighted:
                     # Empty code part but highlighted - pad the line
                     remaining_width = max(0, width - len(blame_meta))
-                    text.append(" " * remaining_width, style="reverse")
-
-                text.append("\n")
+                    text.append(" " * remaining_width + "\n", style="reverse")
+                else:
+                    text.append("\n")
             else:
                 # Fallback: render without syntax highlighting
                 if is_highlighted:
