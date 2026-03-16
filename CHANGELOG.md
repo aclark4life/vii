@@ -18,10 +18,33 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Code spans and fenced code blocks in green
   - List markers in yellow
   - Emphasis (italic) and strong emphasis (bold)
+  - Block quote markers in dim italic
 - Maximize focused panel with `m` key
-  - When sidebar is focused, `m` hides content panel
-  - When content panel is focused, `m` hides sidebar
+  - When sidebar is focused, `m` hides content panel (maximizes sidebar)
+  - When content panel is focused, `m` hides sidebar (maximizes content)
   - Press `m` again to restore both panels
+  - Sidebar expands to full width when maximized
+  - Focus stays on the panel that was maximized when restoring
+- Cursor line highlighting in content panel
+  - Click any line to highlight it
+  - `j`/`k` keys move highlight line by line
+  - Highlight shown with reverse style when content panel has focus
+  - `ESC` removes highlight when returning focus to sidebar
+  - Works with both tree-sitter and Pygments syntax highlighting
+- Page up/down cursor movement in file content view
+  - `ctrl+f`, `ctrl+d`, `d` move cursor down by page size
+  - `ctrl+b`, `ctrl+u`, `u` move cursor up by page size
+  - Cursor highlight follows page movement
+  - Falls back to scroll-only behavior for git log, blame, and directory views
+- Double-click in content panel to open file in editor (same as `e` key)
+
+### Fixed
+- Content search now works correctly with `/` key in content panel
+- Content search uses the currently displayed file instead of tree cursor
+- Search scrolling uses viewport-aware positioning to keep matches visible
+- Blank lines in git blame view no longer doubled
+- Sidebar restore now correctly sets width after maximizing
+- CI badge in README now points to correct workflow file
 
 ## [0.1.0a5] - 2026-03-14
 
