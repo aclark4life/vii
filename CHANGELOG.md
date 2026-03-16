@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.1.0a6] - 2026-03-16
+
 ### Added
 - Syntax highlighting for code portions in git blame view
   - Blame metadata (commit, author, date) shown in dim style
@@ -183,7 +185,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Pre-commit hooks for code quality with ruff (replaced black, flake8, and isort)
 - Comprehensive test suite
 
-[Unreleased]: https://github.com/aclark4life/vii/compare/v0.1.0a5...HEAD
+[Unreleased]: https://github.com/aclark4life/vii/compare/v0.1.0a6...HEAD
+[0.1.0a6]: https://github.com/aclark4life/vii/compare/v0.1.0a5...v0.1.0a6
 [0.1.0a5]: https://github.com/aclark4life/vii/compare/v0.1.0a4...v0.1.0a5
 [0.1.0a4]: https://github.com/aclark4life/vii/compare/v0.1.0a3...v0.1.0a4
 [0.1.0a3]: https://github.com/aclark4life/vii/compare/v0.1.0a2...v0.1.0a3
