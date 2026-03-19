@@ -1927,6 +1927,8 @@ class Vii(KeyHandlersMixin, GitHandlersMixin, App):
                         f"Shell exited with code {result.returncode}",
                         severity="warning",
                     )
+            # Refresh the screen after returning from the shell
+            self.refresh()
         except Exception as e:
             self.notify(f"Error opening shell: {e}", severity="error")
 
@@ -1951,6 +1953,8 @@ class Vii(KeyHandlersMixin, GitHandlersMixin, App):
                         f"Editor exited with code {result.returncode}",
                         severity="warning",
                     )
+            # Refresh the screen after returning from the editor
+            self.refresh()
         except Exception as e:
             self.notify(f"Error opening file: {e}", severity="error")
 
