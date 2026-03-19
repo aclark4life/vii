@@ -915,17 +915,59 @@ class Vii(KeyHandlersMixin, GitHandlersMixin, App):
         lines = content.split("\n")
         line_num_width = len(str(len(lines))) + 1
 
+        # Get lexer and theme for syntax highlighting
+        lexer = get_syntax_lexer(path)
+        syntax_theme = get_syntax_theme(self.theme)
+
         for i, line in enumerate(lines):
             is_highlighted = i == self._content_highlighted_line
             line_num_style = "reverse dim" if is_highlighted else "dim"
             text.append(f"{i + 1:>{line_num_width}} │ ", style=line_num_style)
 
             if is_highlighted:
-                # Pad line and apply reverse style
-                padded_line = line.ljust(width - line_num_width - 3)
-                text.append(padded_line, style="reverse")
+                # For highlighted line, apply syntax highlighting then reverse style
+                if lexer and line.strip():
+                    # Use Rich's Syntax to get highlighted text for just this line
+                    syntax = Syntax(
+                        line,
+                        lexer,
+                        theme=syntax_theme,
+                        line_numbers=False,
+                        word_wrap=False,
+                    )
+                    # Extract the highlighted text from Syntax
+                    highlighted_text = syntax.highlight(line)
+                    # Remove trailing newline that Syntax.highlight() adds
+                    highlighted_text.rstrip()
+                    # Pad and apply reverse style
+                    line_start = len(text)
+                    text.append(highlighted_text)
+                    # Pad to full width
+                    current_len = len(text) - line_start
+                    padding_needed = max(0, width - current_len - line_num_width - 3)
+                    if padding_needed > 0:
+                        text.append(" " * padding_needed)
+                    # Apply reverse style to the entire line content
+                    text.stylize("reverse", line_start)
+                else:
+                    # Plain text with reverse style
+                    padded_line = line.ljust(width - line_num_width - 3)
+                    text.append(padded_line, style="reverse")
             else:
-                text.append(line)
+                # Normal line with syntax highlighting
+                if lexer and line.strip():
+                    syntax = Syntax(
+                        line,
+                        lexer,
+                        theme=syntax_theme,
+                        line_numbers=False,
+                        word_wrap=False,
+                    )
+                    highlighted_text = syntax.highlight(line)
+                    highlighted_text.rstrip()
+                    text.append(highlighted_text)
+                else:
+                    text.append(line)
 
             if i < len(lines) - 1:
                 text.append("\n")
