@@ -378,9 +378,16 @@ class TestVii:
             assert content is not None
             assert content.id == "content-display"
 
-    async def test_enter_toggles_focus(self, tmp_path):
-        """Test Enter key toggles focus between sidebar and content panel."""
-        (tmp_path / "test.txt").write_text("content")
+    async def test_enter_behavior(self, tmp_path):
+        """Test Enter key behavior in sidebar and content panel."""
+        # Create multiple test files
+        (tmp_path / "file1.txt").write_text("content 1")
+        (tmp_path / "file2.txt").write_text("content 2")
+        (tmp_path / "file3.txt").write_text("content 3")
+
+        # Create a test file with multiple lines for content scrolling
+        test_content = "\n".join([f"Line {i}" for i in range(50)])
+        (tmp_path / "test.txt").write_text(test_content)
 
         app = Vii(start_path=tmp_path)
 
@@ -390,16 +397,28 @@ class TestVii:
             tree = app._get_tree()
             scroll = app._get_scroll_container()
 
-            # Expand and navigate to file
+            # Expand root to see files
             tree.root.expand()
             await pilot.pause()
-            await pilot.press("j")
             await pilot.pause()
-            await pilot.pause()  # Wait for content update
 
             # Initial state: tree has focus
             assert tree.has_focus
             assert not scroll.has_focus
+
+            # Get initial cursor position in tree
+            initial_cursor = tree.cursor_node
+
+            # Enter in sidebar should move cursor down (like j key)
+            await pilot.press("enter")
+            await pilot.pause()
+            await pilot.pause()  # Wait for content update
+
+            # Focus should remain in sidebar
+            assert tree.has_focus
+            assert not scroll.has_focus
+            # Cursor should have moved down
+            assert tree.cursor_node != initial_cursor
 
             # Tab to content panel
             await pilot.press("tab")
@@ -407,17 +426,15 @@ class TestVii:
             assert scroll.has_focus
             assert not tree.has_focus
 
-            # Enter should switch back to sidebar
+            # Enter in content panel should scroll down (not switch focus)
+            initial_scroll_y = scroll.scroll_y
             await pilot.press("enter")
             await pilot.pause()
-            assert tree.has_focus
-            assert not scroll.has_focus
-
-            # Enter on file should switch to content
-            await pilot.press("enter")
-            await pilot.pause()
+            # Focus should remain in content panel
             assert scroll.has_focus
             assert not tree.has_focus
+            # Scroll position should have changed (scrolled down)
+            assert scroll.scroll_y >= initial_scroll_y
 
     async def test_jk_scrolls_in_git_commit_view(self, tmp_path):
         """Test j/k scrolls content when viewing a git commit (not navigating log)."""

@@ -222,8 +222,8 @@ class KeyHandlersMixin:
                 clicked_path = self._dir_listing_entries[self._dir_listing_highlighted]
                 self._navigate_to_path(clicked_path)
             else:
-                # Switch focus back to sidebar
-                tree.focus()
+                # Scroll down one line (like a pager)
+                scroll_container.scroll_down()
         # Sidebar-specific key handling (when sidebar has focus)
         elif not content_focused and event.key == "slash":
             # Open sidebar search
@@ -619,7 +619,7 @@ class KeyHandlersMixin:
             scroll_container.scroll_page_down()
 
     def action_select_or_toggle_focus(self) -> None:
-        """Handle Enter key - select item or toggle focus between panels."""
+        """Handle Enter key - scroll down in both sidebar and content panel."""
         tree = self._get_tree()
         scroll_container = self._get_scroll_container()
         if not tree or not scroll_container:
@@ -628,7 +628,7 @@ class KeyHandlersMixin:
         content_focused = scroll_container.has_focus
 
         if content_focused:
-            # In content panel: handle special views or switch back to sidebar
+            # In content panel: handle special views or scroll down
             if self.git_log_viewing and not self.git_commit_viewing:
                 # Show the highlighted commit details
                 self._show_git_commit()
@@ -639,27 +639,9 @@ class KeyHandlersMixin:
                 clicked_path = self._dir_listing_entries[self._dir_listing_highlighted]
                 self._navigate_to_path(clicked_path)
             else:
-                # Switch focus back to sidebar
-                tree.focus()
+                # Scroll down one line (like a pager)
+                scroll_container.scroll_down()
         else:
-            # In sidebar: toggle directory or switch to content panel
-            if tree.cursor_node and tree.cursor_node.data:
-                path = tree.cursor_node.data.path
-                if path.is_dir():
-                    # Toggle directory expansion
-                    if tree.cursor_node.is_expanded:
-                        tree.cursor_node.collapse()
-                    else:
-                        tree.cursor_node.expand()
-                else:
-                    # For files, switch focus to content panel and show line highlight
-                    scroll_container.focus()
-                    if (
-                        self.original_content
-                        and self._displayed_path
-                        and self._displayed_path.is_file()
-                    ):
-                        self._render_file_content_with_highlight()
-            else:
-                # No node selected, switch focus to content panel
-                scroll_container.focus()
+            # In sidebar: move cursor down (like scrolling)
+            tree.action_cursor_down()
+            self._schedule_content_update()
