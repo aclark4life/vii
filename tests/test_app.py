@@ -539,6 +539,38 @@ class TestVii:
             assert not app.git_commit_viewing, "Should be back to log view"
             assert app.git_log_viewing, "Should still be viewing log"
 
+    async def test_get_blame_line_commit_hash(self, tmp_path):
+        """Test extracting commit hash from blame line."""
+        app = Vii(start_path=tmp_path)
+
+        async with app.run_test() as pilot:
+            await pilot.pause()
+
+            # Test with normal commit hash
+            app.git_blame_output = "abc123de test.py (John Doe 2024-01-15  1) print('hello')"
+            app.git_blame_highlighted_line = 0
+
+            commit_hash = app._get_blame_line_commit_hash()
+            assert commit_hash == "abc123de"
+
+            # Test with boundary commit (^ prefix)
+            app.git_blame_output = "^abc123de test.py (John Doe 2024-01-15  1) print('hello')"
+            app.git_blame_highlighted_line = 0
+
+            commit_hash = app._get_blame_line_commit_hash()
+            assert commit_hash == "abc123de"
+
+            # Test with no blame output
+            app.git_blame_output = ""
+            commit_hash = app._get_blame_line_commit_hash()
+            assert commit_hash is None
+
+            # Test with invalid line number
+            app.git_blame_output = "abc123de test.py (John Doe 2024-01-15  1) print('hello')"
+            app.git_blame_highlighted_line = 10
+            commit_hash = app._get_blame_line_commit_hash()
+            assert commit_hash is None
+
 
 class TestMain:
     """Test cases for the main entry point."""

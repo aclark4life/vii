@@ -645,6 +645,82 @@ class GitHandlersMixin:
             # Line is below visible area, scroll down
             scroll_container.scroll_to(y=target_y - visible_height + 2, animate=False)
 
+    def _get_blame_line_commit_hash(self) -> str | None:
+        """Extract the commit hash from the currently highlighted blame line.
+
+        Returns:
+            The commit hash string, or None if not found
+        """
+        if self.git_blame_highlighted_line < 0 or not self.git_blame_output:
+            return None
+
+        lines = self.git_blame_output.split("\n")
+        if self.git_blame_highlighted_line >= len(lines):
+            return None
+
+        line = lines[self.git_blame_highlighted_line]
+
+        # Parse the blame line to extract the commit hash
+        # Format: "^?[a-f0-9]+ [filename] (author date line_num) code"
+        # The hash is at the beginning, may have ^ prefix for boundary commits
+        match = re.match(r"^(\^?[a-f0-9]+)", line)
+        if match:
+            commit_hash = match.group(1).lstrip("^")  # Remove ^ prefix if present
+            return commit_hash
+        return None
+
+    def _show_blame_commit(self) -> None:
+        """Show the detailed view of the commit for the highlighted blame line."""
+        commit_hash = self._get_blame_line_commit_hash()
+        if not commit_hash:
+            self.notify("No commit found on this line", severity="warning")
+            return
+
+        if not self.git_root:
+            self.notify("Not in a git repository", severity="warning")
+            return
+
+        try:
+            from .git_utils import get_git_show
+
+            show_output = get_git_show(self.git_root, commit_hash)
+
+            if show_output:
+                # Create a header with commit info
+                text = Text()
+                text.append(f"📋 Commit: {commit_hash}\n\n", style="bold")
+
+                # Try to syntax highlight the diff portion
+                content_display = self._get_content_display()
+                if not content_display:
+                    return
+
+                # Use diff syntax highlighting with theme matching content panel
+                syntax = Syntax(
+                    show_output,
+                    "diff",
+                    theme=get_syntax_theme(self.theme),
+                    line_numbers=False,
+                )
+
+                content_display.update(Group(text, syntax))
+
+                # Update state - we're now viewing a commit from blame
+                self.git_commit_viewing = True
+                self.git_commit_hash = commit_hash
+                # Keep git_blame_viewing True so ESC can go back to blame
+
+                # Scroll to top
+                scroll_container = self._get_scroll_container()
+                if scroll_container:
+                    scroll_container.scroll_home(animate=False)
+
+                self.notify(f"Showing commit {commit_hash[:8]}")
+            else:
+                self.notify("Could not retrieve commit details", severity="error")
+        except Exception as e:
+            self.notify(f"Failed to show commit: {e}", severity="error")
+
     def _git_switch_branch(self) -> None:
         """Show branch selection and switch to selected branch."""
         if not self.git_branch or not self.git_root:

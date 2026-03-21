@@ -215,6 +215,9 @@ class KeyHandlersMixin:
             if self.git_log_viewing and not self.git_commit_viewing:
                 # Show the highlighted commit details
                 self._show_git_commit()
+            elif self.git_blame_viewing and not self.git_commit_viewing:
+                # Show the commit for the highlighted blame line
+                self._show_blame_commit()
             elif self._dir_listing_entries and 0 <= self._dir_listing_highlighted < len(
                 self._dir_listing_entries
             ):
@@ -474,12 +477,20 @@ class KeyHandlersMixin:
     def _handle_escape_key(self, event: events.Key, tree: Any, scroll_container: Any) -> None:
         """Handle ESC key in content panel."""
         if self.git_commit_viewing:
-            # Go back to git log view
+            # Go back to git log or blame view
             event.prevent_default()
             self.git_commit_viewing = False
             self.git_commit_hash = ""
-            self._render_log_with_highlight()
-            self._scroll_to_log_entry()
+
+            # Check if we came from blame view or log view
+            if self.git_blame_viewing:
+                # Go back to blame view
+                self._render_blame_with_highlight()
+                self._scroll_to_blame_line()
+            else:
+                # Go back to log view
+                self._render_log_with_highlight()
+                self._scroll_to_log_entry()
         elif self.git_log_viewing:
             # Close git log display and restore file content
             event.prevent_default()
@@ -632,6 +643,9 @@ class KeyHandlersMixin:
             if self.git_log_viewing and not self.git_commit_viewing:
                 # Show the highlighted commit details
                 self._show_git_commit()
+            elif self.git_blame_viewing and not self.git_commit_viewing:
+                # Show the commit for the highlighted blame line
+                self._show_blame_commit()
             elif self._dir_listing_entries and 0 <= self._dir_listing_highlighted < len(
                 self._dir_listing_entries
             ):
