@@ -142,7 +142,7 @@ class Vii(KeyHandlersMixin, GitHandlersMixin, App):
         Binding("u", "page_up", "Page Up"),
         Binding("e", "edit_file", "Edit"),
         Binding("s", "open_shell", "Shell"),
-        Binding("enter", "select_or_toggle_focus", "Select", show=False, priority=True),
+        Binding("enter", "select_or_toggle_focus", "Select", show=False),
         # Git bindings
         Binding("b", "git_blame", "Blame"),
         # Panel toggle
