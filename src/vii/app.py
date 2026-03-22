@@ -1611,7 +1611,9 @@ class Vii(KeyHandlersMixin, GitHandlersMixin, App):
 
     def _perform_git_log_search(self, query: str) -> None:
         """Search for commits in git log matching the query."""
+        self.notify(f"DEBUG: _perform_git_log_search called with query='{query}'")
         if not query or not self.git_log_output:
+            self.notify(f"DEBUG: Early return - query={bool(query)}, git_log_output={bool(self.git_log_output)}")
             return
 
         self.git_log_search_query = query
