@@ -70,8 +70,7 @@ class KeyHandlersMixin:
 
     def on_key(self, event: events.Key) -> None:
         """Handle key presses for vi-style navigation."""
-        # Don't handle keys if an Input widget has focus (let it handle its own keys)
-        # Exception: ESC key to cancel search
+        # Handle keys when an Input widget has focus
         if self.focused and isinstance(self.focused, Input):
             if event.key == "escape":
                 # Cancel search and hide input
@@ -79,6 +78,15 @@ class KeyHandlersMixin:
                 if self.focused.id == "content-search-input":
                     self._hide_content_search()
                 elif self.focused.id == "sidebar-search-input":
+                    self._hide_sidebar_search()
+            elif event.key == "enter":
+                # Submit search - manually trigger the submission
+                event.prevent_default()
+                if self.focused.id == "content-search-input":
+                    self._perform_search(self.focused.value)
+                    self._hide_content_search()
+                elif self.focused.id == "sidebar-search-input":
+                    self._perform_sidebar_search(self.focused.value)
                     self._hide_sidebar_search()
             return
 
