@@ -82,11 +82,16 @@ class KeyHandlersMixin:
             elif event.key == "enter":
                 # Submit search - manually trigger the submission
                 event.prevent_default()
-                if self.focused.id == "content-search-input":
-                    self._perform_search(self.focused.value)
+                input_widget = self.focused
+                if input_widget.id == "content-search-input":
+                    query = input_widget.value
+                    self.notify(f"Searching for: {query}")  # Debug
+                    self._perform_search(query)
                     self._hide_content_search()
-                elif self.focused.id == "sidebar-search-input":
-                    self._perform_sidebar_search(self.focused.value)
+                elif input_widget.id == "sidebar-search-input":
+                    query = input_widget.value
+                    self.notify(f"Searching sidebar for: {query}")  # Debug
+                    self._perform_sidebar_search(query)
                     self._hide_sidebar_search()
             return
 
