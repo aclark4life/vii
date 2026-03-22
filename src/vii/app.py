@@ -200,12 +200,18 @@ class Vii(KeyHandlersMixin, GitHandlersMixin, App):
             tuple[int, int]
         ] = []  # List of (start_line, end_line) for each entry
         self.git_log_highlighted_entry: int = -1  # Currently highlighted entry index (-1 = none)
+        self.git_log_search_query: str = ""  # Search query for git log
+        self.git_log_search_matches: list[int] = []  # Entry indices with matches
+        self.git_log_current_match_index: int = -1  # Current match index
         self.git_commit_viewing: bool = False  # True when viewing a specific commit
         self.git_commit_hash: str = ""  # Currently viewed commit hash
         self.git_blame_viewing: bool = False
         self.git_blame_output: str = ""  # Store blame output for re-rendering
         self.git_blame_highlighted_line: int = -1  # Currently highlighted line (-1 = none)
         self.git_blame_file_path: Path | None = None  # File being blamed (for syntax highlighting)
+        self.git_blame_search_query: str = ""  # Search query for git blame
+        self.git_blame_search_matches: list[int] = []  # Line numbers with matches
+        self.git_blame_current_match_index: int = -1  # Current match index
         # Panel maximize state
         self._sidebar_hidden: bool = False
         self._content_hidden: bool = False
@@ -1444,13 +1450,30 @@ class Vii(KeyHandlersMixin, GitHandlersMixin, App):
             self._render_file_content_with_highlight()
 
     def _perform_search(self, query: str) -> None:
-        """Perform search and highlight matches."""
+        """Perform search and highlight matches in files, git log, or git blame."""
         if not query:
             self._clear_search_highlights()
             self.search_matches = []
             self.current_match_index = -1
+            self.git_log_search_query = ""
+            self.git_log_search_matches = []
+            self.git_log_current_match_index = -1
+            self.git_blame_search_query = ""
+            self.git_blame_search_matches = []
+            self.git_blame_current_match_index = -1
             return
 
+        # Check if we're in git log view
+        if self.git_log_viewing and not self.git_commit_viewing:
+            self._perform_git_log_search(query)
+            return
+
+        # Check if we're in git blame view
+        if self.git_blame_viewing and not self.git_commit_viewing:
+            self._perform_git_blame_search(query)
+            return
+
+        # Otherwise, search in file content
         self.search_query = query
 
         # Use the currently displayed path instead of tree cursor
@@ -1585,6 +1608,132 @@ class Vii(KeyHandlersMixin, GitHandlersMixin, App):
         self._update_search_highlights()
         self._scroll_to_current_match()
         self.notify(f"Match {self.current_match_index + 1}/{len(self.search_matches)}")
+
+    def _perform_git_log_search(self, query: str) -> None:
+        """Search for commits in git log matching the query."""
+        if not query or not self.git_log_output:
+            return
+
+        self.git_log_search_query = query
+        self.git_log_search_matches = []
+
+        # Search through git log entries
+        lines = self.git_log_output.split("\n")
+        for entry_idx, (start_line, end_line) in enumerate(self.git_log_entries):
+            # Check if any line in this entry matches the query
+            for line_idx in range(start_line, end_line + 1):
+                if line_idx < len(lines):
+                    if query.lower() in lines[line_idx].lower():
+                        self.git_log_search_matches.append(entry_idx)
+                        break  # Found match in this entry, move to next entry
+
+        if not self.git_log_search_matches:
+            self.notify(f"Pattern not found: {query}", severity="warning")
+            return
+
+        # Go to first match
+        self.git_log_current_match_index = 0
+        self.git_log_highlighted_entry = self.git_log_search_matches[0]
+        self._render_log_with_highlight()
+        self._scroll_to_log_entry()
+        self.notify(f"Found {len(self.git_log_search_matches)} commit(s)")
+
+    def _goto_next_git_log_match(self) -> None:
+        """Go to the next git log search match."""
+        if not self.git_log_search_matches:
+            self.notify("No matches to navigate", severity="warning")
+            return
+
+        self.git_log_current_match_index = (
+            self.git_log_current_match_index + 1
+        ) % len(self.git_log_search_matches)
+        self.git_log_highlighted_entry = self.git_log_search_matches[
+            self.git_log_current_match_index
+        ]
+        self._render_log_with_highlight()
+        self._scroll_to_log_entry()
+        self.notify(
+            f"Match {self.git_log_current_match_index + 1}/{len(self.git_log_search_matches)}"
+        )
+
+    def _goto_previous_git_log_match(self) -> None:
+        """Go to the previous git log search match."""
+        if not self.git_log_search_matches:
+            self.notify("No matches to navigate", severity="warning")
+            return
+
+        self.git_log_current_match_index = (
+            self.git_log_current_match_index - 1
+        ) % len(self.git_log_search_matches)
+        self.git_log_highlighted_entry = self.git_log_search_matches[
+            self.git_log_current_match_index
+        ]
+        self._render_log_with_highlight()
+        self._scroll_to_log_entry()
+        self.notify(
+            f"Match {self.git_log_current_match_index + 1}/{len(self.git_log_search_matches)}"
+        )
+
+    def _perform_git_blame_search(self, query: str) -> None:
+        """Search for lines in git blame matching the query."""
+        if not query or not self.git_blame_output:
+            return
+
+        self.git_blame_search_query = query
+        self.git_blame_search_matches = []
+
+        # Search through git blame lines
+        lines = self.git_blame_output.split("\n")
+        for i, line in enumerate(lines):
+            if query.lower() in line.lower():
+                self.git_blame_search_matches.append(i)
+
+        if not self.git_blame_search_matches:
+            self.notify(f"Pattern not found: {query}", severity="warning")
+            return
+
+        # Go to first match
+        self.git_blame_current_match_index = 0
+        self.git_blame_highlighted_line = self.git_blame_search_matches[0]
+        self._render_blame_with_highlight()
+        self._scroll_to_blame_line()
+        self.notify(f"Found {len(self.git_blame_search_matches)} line(s)")
+
+    def _goto_next_git_blame_match(self) -> None:
+        """Go to the next git blame search match."""
+        if not self.git_blame_search_matches:
+            self.notify("No matches to navigate", severity="warning")
+            return
+
+        self.git_blame_current_match_index = (
+            self.git_blame_current_match_index + 1
+        ) % len(self.git_blame_search_matches)
+        self.git_blame_highlighted_line = self.git_blame_search_matches[
+            self.git_blame_current_match_index
+        ]
+        self._render_blame_with_highlight()
+        self._scroll_to_blame_line()
+        self.notify(
+            f"Match {self.git_blame_current_match_index + 1}/{len(self.git_blame_search_matches)}"
+        )
+
+    def _goto_previous_git_blame_match(self) -> None:
+        """Go to the previous git blame search match."""
+        if not self.git_blame_search_matches:
+            self.notify("No matches to navigate", severity="warning")
+            return
+
+        self.git_blame_current_match_index = (
+            self.git_blame_current_match_index - 1
+        ) % len(self.git_blame_search_matches)
+        self.git_blame_highlighted_line = self.git_blame_search_matches[
+            self.git_blame_current_match_index
+        ]
+        self._render_blame_with_highlight()
+        self._scroll_to_blame_line()
+        self.notify(
+            f"Match {self.git_blame_current_match_index + 1}/{len(self.git_blame_search_matches)}"
+        )
 
     def on_input_submitted(self, event: Input.Submitted) -> None:
         """Handle search input submission."""

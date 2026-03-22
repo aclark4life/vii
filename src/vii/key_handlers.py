@@ -175,22 +175,35 @@ class KeyHandlersMixin:
             else:
                 tree.action_page_up()
         elif content_focused and event.key == "slash":
-            # Open content search
+            # Open content search (works in files, git log, and git blame)
             event.prevent_default()
             self._show_content_search()
         elif content_focused and event.key == "n":
             event.prevent_default()
-            # Check if viewing git log
-            if self.git_log_viewing:
-                # Next page of git log
+            # Check if searching in git log
+            if self.git_log_viewing and self.git_log_search_query:
+                self._goto_next_git_log_match()
+            # Check if searching in git blame
+            elif self.git_blame_viewing and self.git_blame_search_query:
+                self._goto_next_git_blame_match()
+            # Check if viewing git log (without search) - navigate pages
+            elif self.git_log_viewing:
                 self._git_log(getattr(self, "git_log_page", 0) + 1)
             else:
-                # Next search match
+                # Next search match in file
                 self._goto_next_match()
         elif content_focused and event.key == "N":
             # Previous search match
             event.prevent_default()
-            self._goto_previous_match()
+            # Check if searching in git log
+            if self.git_log_viewing and self.git_log_search_query:
+                self._goto_previous_git_log_match()
+            # Check if searching in git blame
+            elif self.git_blame_viewing and self.git_blame_search_query:
+                self._goto_previous_git_blame_match()
+            else:
+                # Previous search match in file
+                self._goto_previous_match()
         elif content_focused and event.key == "p":
             event.prevent_default()
             # Check if viewing git log
@@ -201,12 +214,12 @@ class KeyHandlersMixin:
         elif content_focused and event.key == "escape":
             self._handle_escape_key(event, tree, scroll_container)
         elif content_focused and event.key == "H":
-            # H scrolls left more in content panel
+            # H scrolls left in content panel (large movement)
             event.prevent_default()
             if scroll_container.allow_horizontal_scroll:
                 scroll_container.scroll_left()
         elif content_focused and event.key == "L":
-            # L scrolls right more in content panel
+            # L scrolls right in content panel (large movement)
             event.prevent_default()
             if scroll_container.allow_horizontal_scroll:
                 scroll_container.scroll_right()
@@ -362,21 +375,11 @@ class KeyHandlersMixin:
             else:
                 scroll_container.scroll_end()
         elif action_key == "right":
-            # l navigates back through git views or toggles git log
-            if self.git_commit_viewing:
-                # Go back to git log view
-                self.git_commit_viewing = False
-                self.git_commit_hash = ""
-                self._render_log_with_highlight()
-                self._scroll_to_log_entry()
-            elif self.git_log_viewing:
-                # Close git log and restore file content
-                self.action_git_log()
-            else:
-                # Toggle git log on
-                self.action_git_log()
+            # l scrolls right in content panel (small movement)
+            if scroll_container.allow_horizontal_scroll:
+                scroll_container.scroll_right()
         elif action_key == "left":
-            # h scrolls left in content panel
+            # h scrolls left in content panel (small movement)
             if scroll_container.allow_horizontal_scroll:
                 scroll_container.scroll_left()
 
@@ -491,6 +494,14 @@ class KeyHandlersMixin:
                 # Go back to log view
                 self._render_log_with_highlight()
                 self._scroll_to_log_entry()
+        elif self.git_log_viewing and self.git_log_search_query:
+            # Clear git log search (but stay in git log view)
+            event.prevent_default()
+            self.git_log_search_query = ""
+            self.git_log_search_matches = []
+            self.git_log_current_match_index = -1
+            self._render_log_with_highlight()
+            self.notify("Search cleared")
         elif self.git_log_viewing:
             # Close git log display and restore file content
             event.prevent_default()
@@ -499,13 +510,27 @@ class KeyHandlersMixin:
             self.git_log_output = ""
             self.git_log_entries = []
             self.git_log_highlighted_entry = -1
+            self.git_log_search_query = ""
+            self.git_log_search_matches = []
+            self.git_log_current_match_index = -1
             self.git_commit_viewing = False
             self.git_commit_hash = ""
             self._update_content_display()
+        elif self.git_blame_viewing and self.git_blame_search_query:
+            # Clear git blame search (but stay in git blame view)
+            event.prevent_default()
+            self.git_blame_search_query = ""
+            self.git_blame_search_matches = []
+            self.git_blame_current_match_index = -1
+            self._render_blame_with_highlight()
+            self.notify("Search cleared")
         elif self.git_blame_viewing:
             # Close git blame display and restore file content
             event.prevent_default()
             self.git_blame_viewing = False
+            self.git_blame_search_query = ""
+            self.git_blame_search_matches = []
+            self.git_blame_current_match_index = -1
             self._update_content_display()
         elif self.search_query or self.search_matches:
             # Clear search and highlights (only if search is active)
