@@ -71,7 +71,15 @@ class KeyHandlersMixin:
     def on_key(self, event: events.Key) -> None:
         """Handle key presses for vi-style navigation."""
         # Don't handle keys if an Input widget has focus (let it handle its own keys)
+        # Exception: ESC key to cancel search
         if self.focused and isinstance(self.focused, Input):
+            if event.key == "escape":
+                # Cancel search and hide input
+                event.prevent_default()
+                if self.focused.id == "content-search-input":
+                    self._hide_content_search()
+                elif self.focused.id == "sidebar-search-input":
+                    self._hide_sidebar_search()
             return
 
         # Get widgets using helper methods (work with Textual 8.x)
