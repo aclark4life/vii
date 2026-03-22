@@ -811,16 +811,7 @@ class Vii(KeyHandlersMixin, GitHandlersMixin, App):
             if hidden:
                 text.append(f"\n({len(hidden)} hidden items)", style="dim")
 
-            # Add navigation footer if there are entries
-            if self._dir_listing_entries:
-                text.append("\n")
-                text.append("Navigation: ", style="dim")
-                text.append("j/k", style="bold cyan")
-                text.append(" = Up/Down  ", style="dim")
-                text.append("Enter", style="bold cyan")
-                text.append(" = Open  ", style="dim")
-                text.append("ESC", style="bold cyan")
-                text.append(" = Back to sidebar", style="dim")
+
 
         except PermissionError:
             text.append("(permission denied)", style="red")
