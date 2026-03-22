@@ -664,6 +664,10 @@ class KeyHandlersMixin:
 
     def action_select_or_toggle_focus(self) -> None:
         """Handle Enter key - scroll down in both sidebar and content panel."""
+        # Don't handle if an Input widget has focus (let it submit the search)
+        if self.focused and isinstance(self.focused, Input):
+            return
+
         tree = self._get_tree()
         scroll_container = self._get_scroll_container()
         if not tree or not scroll_container:
