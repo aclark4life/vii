@@ -111,8 +111,6 @@ class KeyHandlersMixin:
             "k": "up",
             "h": "left",
             "l": "right",
-            "g": "home",
-            "G": "end",
         }
 
         # Arrow keys
@@ -133,7 +131,7 @@ class KeyHandlersMixin:
                 # Arrow keys are handled by the tree widget, but we still need to update display
                 # Use call_after_refresh to ensure the tree has processed the key first
                 self.call_after_refresh(self._schedule_content_update)
-        elif event.key in ("ctrl+f", "ctrl+d", "d"):
+        elif event.key in ("ctrl+f", "ctrl+d"):
             # Page down (vim-style)
             event.prevent_default()
             if content_focused:
@@ -166,7 +164,7 @@ class KeyHandlersMixin:
                     scroll_container.scroll_page_down()
             else:
                 tree.action_page_down()
-        elif event.key in ("ctrl+b", "ctrl+u", "u"):
+        elif event.key in ("ctrl+b", "ctrl+u"):
             # Page up (vim-style)
             event.prevent_default()
             if content_focused:
@@ -675,8 +673,8 @@ class KeyHandlersMixin:
         if scroll_container:
             scroll_container.scroll_page_down()
 
-    def action_select_or_toggle_focus(self) -> None:
-        """Handle Enter key - scroll down in both sidebar and content panel."""
+    def action_select_and_focus(self) -> None:
+        """Handle Enter key - select file/dir and switch focus to content panel."""
         # Don't handle if an Input widget has focus (let it submit the search)
         if self.focused and isinstance(self.focused, Input):
             return
@@ -689,7 +687,7 @@ class KeyHandlersMixin:
         content_focused = scroll_container.has_focus
 
         if content_focused:
-            # In content panel: handle special views or scroll down
+            # In content panel: handle special views
             if self.git_log_viewing and not self.git_commit_viewing:
                 # Show the highlighted commit details
                 self._show_git_commit()
@@ -702,10 +700,10 @@ class KeyHandlersMixin:
                 # Navigate to the highlighted directory entry
                 clicked_path = self._dir_listing_entries[self._dir_listing_highlighted]
                 self._navigate_to_path(clicked_path)
-            else:
-                # Scroll down one line (like a pager)
-                scroll_container.scroll_down()
         else:
-            # In sidebar: move cursor down (like scrolling)
-            tree.action_cursor_down()
-            self._schedule_content_update()
+            # In sidebar: select current item and switch focus to content panel
+            if tree.cursor_node and tree.cursor_node.data:
+                path = tree.cursor_node.data.path
+                # Update content display and switch focus
+                self._schedule_content_update()
+                scroll_container.focus()

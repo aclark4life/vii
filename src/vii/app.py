@@ -137,23 +137,20 @@ class Vii(KeyHandlersMixin, GitHandlersMixin, App):
     BINDINGS = [
         Binding("q", "quit", "Quit", priority=True),
         Binding("ctrl+c", "quit", "Quit", show=False),
-        Binding("tab", "focus_next", "Tab", show=False),
+        Binding("tab", "focus_next", "Tab"),
         Binding("shift+tab", "focus_previous", "Shift+Tab", show=False),
         # Command palette
-        Binding("ctrl+p", "command_palette", "palette"),
+        Binding("ctrl+p", "command_palette", "Palette"),
         # Vi-style navigation (shown in footer)
         Binding("j", "cursor_down", "Down"),
         Binding("k", "cursor_up", "Up"),
         Binding("h", "cursor_left", "Collapse"),
-        Binding("g", "scroll_home", "Top"),
-        Binding("G", "scroll_end", "Bottom"),
-        Binding("d", "page_down", "Page Down"),
-        Binding("u", "page_up", "Page Up"),
-        Binding("e", "edit_file", "Edit"),
-        Binding("s", "open_shell", "Shell"),
-        Binding("enter", "select_or_toggle_focus", "Select", show=False),
+        Binding("l", "cursor_right", "Expand"),
+        Binding("o", "edit_file", "Open"),
+        Binding("!", "open_shell", "Shell", show=False),
+        Binding("enter", "select_and_focus", "Select"),
         # Panel toggle
-        Binding("m", "toggle_maximize", "Max"),
+        Binding("z", "toggle_maximize", "Zoom", show=False),
         # Arrow keys still work but hidden from footer
         Binding("down", "cursor_down", "Down", show=False),
         Binding("up", "cursor_up", "Up", show=False),
@@ -1755,7 +1752,7 @@ class Vii(KeyHandlersMixin, GitHandlersMixin, App):
 
     # action_cursor_down, action_cursor_up, action_cursor_left, action_cursor_right,
     # action_scroll_home, action_scroll_end, action_page_up, action_page_down,
-    # action_select_or_toggle_focus are now in KeyHandlersMixin (key_handlers.py)
+    # action_select_and_focus are now in KeyHandlersMixin (key_handlers.py)
 
     def on_directory_tree_file_selected(self, event: DirectoryTree.FileSelected) -> None:
         """Handle file selection from the directory tree - keep focus in sidebar."""
