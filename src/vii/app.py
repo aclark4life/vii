@@ -37,7 +37,7 @@ from vii.git_utils import (
 )
 from vii.key_handlers import KeyHandlersMixin
 from vii.tree_sitter_highlight import get_language_for_file, highlight_with_tree_sitter
-from vii.widgets import GitDirectoryTree, VerticalSplitter
+from vii.widgets import CommandPalette, GitDirectoryTree, VerticalSplitter
 
 
 class Vii(KeyHandlersMixin, GitHandlersMixin, App):
@@ -1926,6 +1926,10 @@ class Vii(KeyHandlersMixin, GitHandlersMixin, App):
         except ValueError:
             # Path is not relative to start_path
             pass
+
+    def action_command_palette(self) -> None:
+        """Open the command palette with our custom implementation."""
+        self.push_screen(CommandPalette())
 
     def action_edit_file(self) -> None:
         """Open the currently selected file in the editor (or image viewer for images)."""

@@ -3,16 +3,89 @@
 from __future__ import annotations
 
 from pathlib import Path
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, ClassVar
 
 from rich.text import Text
-from textual import events
+from textual import events, on
+from textual.binding import Binding, BindingType
+from textual.command import CommandPalette as TextualCommandPalette
 from textual.reactive import reactive
 from textual.widget import Widget
-from textual.widgets import DirectoryTree
+from textual.widgets import Button, DirectoryTree, Input, OptionList
 
 if TYPE_CHECKING:
     pass
+
+
+# Import CommandInput from textual.command so we can use it in compose
+from textual.command import CommandInput as CustomCommandInput
+
+
+class CommandPalette(TextualCommandPalette):
+    """Custom CommandPalette that supports j/k navigation and Enter to submit."""
+
+    BINDINGS: ClassVar[list[BindingType]] = [
+        Binding(
+            "ctrl+end, shift+end",
+            "command_list('last')",
+            "Go to bottom",
+            show=False,
+        ),
+        Binding(
+            "ctrl+home, shift+home",
+            "command_list('first')",
+            "Go to top",
+            show=False,
+        ),
+        Binding("down,j", "cursor_down", "Next command", show=False),
+        Binding("escape", "escape", "Exit the command palette"),
+        Binding("pagedown", "command_list('page_down')", "Next page", show=False),
+        Binding("pageup", "command_list('page_up')", "Previous page", show=False),
+        Binding("up,k", "command_list('cursor_up')", "Previous command", show=False),
+        Binding("enter", "select_or_submit", "Select/Submit", show=False, priority=True),
+    ]
+    """Extended bindings that add j/k navigation and enter handling."""
+
+    def action_select_or_submit(self) -> None:
+        """Handle Enter key - select highlighted option or submit input."""
+        from textual.command import CommandList
+
+        # Check if the list is visible and has a highlighted option
+        if self._list_visible:
+            command_list = self.query_one(CommandList)
+            # If something is highlighted, select it
+            if command_list.highlighted is not None:
+                self._action_command_list("select")
+            # If nothing is highlighted but there are options, highlight the first one
+            elif command_list.option_count > 0:
+                self._action_cursor_down()
+                # If there's only one option, select it
+                if command_list.option_count == 1:
+                    self._action_command_list("select")
+        else:
+            # List not visible, trigger the normal submit behavior
+            # Simulate an Input.Submitted event
+            from textual.widgets import Input
+            input_widget = self.query_one(Input)
+            self.post_message(Input.Submitted(input_widget, input_widget.value))
+
+    def compose(self) -> "ComposeResult":
+        """Compose the command palette with our custom input."""
+        from textual.app import ComposeResult
+        from textual.command import CommandList, SearchIcon
+        from textual.containers import Horizontal, Vertical
+        from textual.widgets import LoadingIndicator
+
+
+        with Vertical(id="--container"):
+            with Horizontal(id="--input"):
+                yield SearchIcon()
+                yield CustomCommandInput(placeholder=self._placeholder, select_on_focus=False)
+                if not self.run_on_select:
+                    yield Button("\u25b6")
+            with Vertical(id="--results"):
+                yield CommandList()
+                yield LoadingIndicator()
 
 
 class GitDirectoryTree(DirectoryTree):

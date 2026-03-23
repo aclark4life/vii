@@ -728,9 +728,10 @@ class GitHandlersMixin:
             return
 
         try:
-            from textual.command import CommandPalette, DiscoveryHit, Hit, Provider
+            from textual.command import DiscoveryHit, Hit, Provider
 
             from .git_utils import get_git_branches
+            from .widgets import CommandPalette
 
             branches = get_git_branches(self.git_root)
             if not branches:

@@ -38,7 +38,7 @@ class ConfigCommandProvider(Provider):
 
     async def _show_config_commands(self) -> None:
         """Show config subcommands in the palette."""
-        from textual.command import CommandPalette
+        from vii.widgets import CommandPalette
 
         parent_provider = self
 
@@ -134,7 +134,7 @@ class GitCommandProvider(Provider):
 
     async def _show_git_commands(self) -> None:
         """Show git subcommands in the palette."""
-        from textual.command import CommandPalette
+        from vii.widgets import CommandPalette
 
         parent_provider = self
 
