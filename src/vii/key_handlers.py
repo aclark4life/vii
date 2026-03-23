@@ -259,6 +259,14 @@ class KeyHandlersMixin:
             else:
                 # Scroll down one line (like a pager)
                 scroll_container.scroll_down()
+        elif not content_focused and event.key == "enter":
+            # In sidebar: select current item and switch focus to content panel
+            event.prevent_default()
+            if tree.cursor_node and tree.cursor_node.data:
+                # Update content display immediately (not debounced)
+                self._do_content_update()
+                # Switch focus to content panel after refresh
+                scroll_container.focus()
         # Sidebar-specific key handling (when sidebar has focus)
         elif not content_focused and event.key == "slash":
             # Open sidebar search
