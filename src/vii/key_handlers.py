@@ -260,13 +260,20 @@ class KeyHandlersMixin:
                 # Scroll down one line (like a pager)
                 scroll_container.scroll_down()
         elif not content_focused and event.key == "enter":
-            # In sidebar: select current item and switch focus to content panel
+            # In sidebar: toggle dirs, switch focus for files
             event.prevent_default()
             if tree.cursor_node and tree.cursor_node.data:
-                # Update content display immediately (not debounced)
-                self._do_content_update()
-                # Switch focus to content panel after refresh
-                scroll_container.focus()
+                path = tree.cursor_node.data.path
+                if path.is_dir():
+                    # Toggle directory expansion
+                    if tree.cursor_node.is_expanded:
+                        tree.cursor_node.collapse()
+                    else:
+                        tree.cursor_node.expand()
+                else:
+                    # For files: update content and switch focus to content panel
+                    self._do_content_update()
+                    scroll_container.focus()
         # Sidebar-specific key handling (when sidebar has focus)
         elif not content_focused and event.key == "slash":
             # Open sidebar search
@@ -682,7 +689,7 @@ class KeyHandlersMixin:
             scroll_container.scroll_page_down()
 
     def action_select_and_focus(self) -> None:
-        """Handle Enter key - select file/dir and switch focus to content panel."""
+        """Handle Enter key - toggle dirs, switch focus for files."""
         # Don't handle if an Input widget has focus (let it submit the search)
         if self.focused and isinstance(self.focused, Input):
             return
@@ -709,10 +716,16 @@ class KeyHandlersMixin:
                 clicked_path = self._dir_listing_entries[self._dir_listing_highlighted]
                 self._navigate_to_path(clicked_path)
         else:
-            # In sidebar: select current item and switch focus to content panel
+            # In sidebar: toggle dirs, switch focus for files
             if tree.cursor_node and tree.cursor_node.data:
                 path = tree.cursor_node.data.path
-                # Update content display immediately (not debounced)
-                self._do_content_update()
-                # Switch focus to content panel
-                self.call_after_refresh(lambda: scroll_container.focus())
+                if path.is_dir():
+                    # Toggle directory expansion
+                    if tree.cursor_node.is_expanded:
+                        tree.cursor_node.collapse()
+                    else:
+                        tree.cursor_node.expand()
+                else:
+                    # For files: update content and switch focus to content panel
+                    self._do_content_update()
+                    scroll_container.focus()
