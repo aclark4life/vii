@@ -84,15 +84,24 @@ class Vii(KeyHandlersMixin, GitHandlersMixin, App):
         height: 100%;
         border: solid $panel;
         overflow-x: auto;
+        opacity: 1.0;
     }
 
     #content-scroll:focus {
         border: solid $accent;
+        opacity: 1.0;
     }
 
     #content-display {
         padding: 1 2;
         width: auto;
+        color: $text;
+        opacity: 1.0;
+    }
+
+    #content-scroll:focus #content-display {
+        color: $text;
+        opacity: 1.0;
     }
 
     #content-search-container {
@@ -143,8 +152,6 @@ class Vii(KeyHandlersMixin, GitHandlersMixin, App):
         Binding("e", "edit_file", "Edit"),
         Binding("s", "open_shell", "Shell"),
         Binding("enter", "select_or_toggle_focus", "Select", show=False),
-        # Git bindings
-        Binding("b", "git_blame", "Blame"),
         # Panel toggle
         Binding("m", "toggle_maximize", "Max"),
         # Arrow keys still work but hidden from footer
