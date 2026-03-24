@@ -46,6 +46,17 @@ class CommandPalette(TextualCommandPalette):
     ]
     """Extended bindings that add j/k navigation and enter handling."""
 
+    def on_key(self, event: events.Key) -> None:
+        """Handle key events, especially ESC to close the palette."""
+        if event.key == "escape":
+            event.prevent_default()
+            event.stop()
+            self.dismiss()
+
+    def action_escape(self) -> None:
+        """Handle ESC key - close the command palette."""
+        self.dismiss()
+
     def action_select_or_submit(self) -> None:
         """Handle Enter key - select highlighted option or submit input."""
         from textual.command import CommandList
