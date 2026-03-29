@@ -107,6 +107,8 @@ class GitDirectoryTree(DirectoryTree):
         self.git_file_status: dict[str, str] = {}
         # Cache for path -> relative path mapping (avoid repeated computation)
         self._rel_path_cache: dict[Path, str | None] = {}
+        # Cache for path -> pre-rendered status indicator (avoid re-creating Text objects)
+        self._status_indicator_cache: dict[Path, Text | None] = {}
         self._tree_root: Path | None = None
 
     def _get_rel_path(self, path: Path) -> str | None:
@@ -126,35 +128,75 @@ class GitDirectoryTree(DirectoryTree):
             self._rel_path_cache[path] = None
             return None
 
+    def _build_status_indicator(self, status_code: str) -> Text:
+        """Build a Text object for a git status code.
+
+        Args:
+            status_code: Git status code (e.g., 'M ', 'A ', '??')
+
+        Returns:
+            Pre-rendered Text object with status indicator
+        """
+        # Map status codes to indicators (pre-rendered Text objects)
+        if "M" in status_code:
+            return Text("~", style="yellow") + Text(" ")
+        elif "A" in status_code:
+            return Text("+", style="green") + Text(" ")
+        elif "D" in status_code:
+            return Text("-", style="red")
+        elif "?" in status_code:
+            return Text("?", style="cyan") + Text(" ")
+        return Text("")
+
+    def update_git_status_cache(self) -> None:
+        """Pre-compute status indicators for all files with git status.
+
+        Call this after updating git_file_status to rebuild the cache.
+        This avoids computing status on every render.
+        """
+        self._status_indicator_cache.clear()
+
+        if not self.git_file_status:
+            return
+
+        # Lazily initialize tree root
+        if self._tree_root is None:
+            self._tree_root = Path(self.path)
+
+        # Pre-compute status indicators for all tracked files
+        for rel_path, status_code in self.git_file_status.items():
+            try:
+                abs_path = self._tree_root / rel_path
+                self._status_indicator_cache[abs_path] = self._build_status_indicator(status_code)
+            except Exception:
+                # Skip files that can't be resolved
+                pass
+
     def clear_path_cache(self) -> None:
-        """Clear the relative path cache (call when tree root changes)."""
+        """Clear all caches (call when tree root changes)."""
         self._rel_path_cache.clear()
+        self._status_indicator_cache.clear()
         self._tree_root = None
 
     def render_label(self, node, base_style, style):
-        """Render a label with git status indicator."""
+        """Render a label with git status indicator.
+
+        This method is called on every render for every visible node,
+        so it's optimized to use pre-computed status indicators from cache.
+        """
         label = super().render_label(node, base_style, style)
 
         # Quick exit if no git status data
-        if not self.git_file_status:
+        if not self._status_indicator_cache:
             return label
 
-        # Add git status indicator if available
+        # Add git status indicator if available (from pre-computed cache)
         if node.data and hasattr(node.data, "path"):
             path = node.data.path
-            # Use cached relative path lookup
-            rel_path = self._get_rel_path(path)
-            if rel_path and rel_path in self.git_file_status:
-                status_code = self.git_file_status[rel_path]
-                # Map status codes to indicators
-                if "M" in status_code:
-                    label = Text("~", style="yellow") + Text(" ") + label
-                elif "A" in status_code:
-                    label = Text("+", style="green") + Text(" ") + label
-                elif "D" in status_code:
-                    label = Text("-", style="red") + label
-                elif "?" in status_code:
-                    label = Text("?", style="cyan") + Text(" ") + label
+            # O(1) lookup in pre-computed cache (no path computation, no Text creation)
+            status_indicator = self._status_indicator_cache.get(path)
+            if status_indicator:
+                label = status_indicator + label
 
         return label
 

@@ -403,6 +403,7 @@ class Vii(KeyHandlersMixin, GitHandlersMixin, App):
         with Vertical(id="sidebar"):
             tree = GitDirectoryTree(str(self.start_path))
             tree.git_file_status = self.git.file_status
+            tree.update_git_status_cache()  # Pre-compute status indicators
             yield tree
             with Horizontal(id="sidebar-search-container"):
                 yield Input(
@@ -485,10 +486,11 @@ class Vii(KeyHandlersMixin, GitHandlersMixin, App):
             self.git.status = get_git_status_summary(path)
             self.git.file_status = get_git_file_status(path)
 
-            # Update the tree's git status
+            # Update the tree's git status and pre-compute status indicators
             try:
                 tree = self.query_one(GitDirectoryTree)
                 tree.git_file_status = self.git.file_status
+                tree.update_git_status_cache()  # Pre-compute status indicators
                 tree.refresh()
             except Exception:
                 pass  # Tree may not be mounted yet
@@ -574,6 +576,7 @@ class Vii(KeyHandlersMixin, GitHandlersMixin, App):
             sidebar = self.query_one("#sidebar", Vertical)
             new_tree = GitDirectoryTree(str(directory))
             new_tree.git_file_status = self.git.file_status
+            new_tree.update_git_status_cache()  # Pre-compute status indicators
             sidebar.mount(new_tree, before=0)  # Mount at the beginning
             new_tree.focus()
 
@@ -619,6 +622,7 @@ class Vii(KeyHandlersMixin, GitHandlersMixin, App):
             sidebar = self.query_one("#sidebar", Vertical)
             new_tree = GitDirectoryTree(str(self.start_path))
             new_tree.git_file_status = self.git.file_status
+            new_tree.update_git_status_cache()  # Pre-compute status indicators
             sidebar.mount(new_tree, before=0)  # Mount at the beginning
 
             # Restore expanded state and cursor position

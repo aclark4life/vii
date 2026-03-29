@@ -184,6 +184,39 @@ class TestGitPerformance:
         assert elapsed_check < 0.1, f"Git repo check took {elapsed_check:.3f}s"
         assert elapsed_status < 0.5, f"Git status took {elapsed_status:.3f}s"
 
+    def test_git_tree_render_cache_performance(self, tmp_path: Path) -> None:
+        """Test that GitDirectoryTree render_label with cache is fast."""
+        from vii.widgets import GitDirectoryTree
+
+        # Create a mock tree
+        tree = GitDirectoryTree(str(tmp_path))
+
+        # Simulate git status for many files
+        git_status = {}
+        for i in range(100):
+            git_status[f"file_{i}.py"] = "M "  # Modified
+
+        tree.git_file_status = git_status
+
+        # Test cache building (one-time cost)
+        start = time.perf_counter()
+        tree.update_git_status_cache()
+        cache_build_time = time.perf_counter() - start
+
+        # Verify cache is populated
+        assert len(tree._status_indicator_cache) > 0
+
+        # Cache build should be fast (one-time cost)
+        assert cache_build_time < 0.1, (
+            f"Cache build took {cache_build_time:.3f}s, should be < 0.1s"
+        )
+
+        print(
+            f"\nGit tree render cache build: {cache_build_time * 1000:.2f}ms for "
+            f"{len(git_status)} files"
+        )
+        print(f"Cache contains {len(tree._status_indicator_cache)} pre-computed indicators")
+
 
 if __name__ == "__main__":
     pytest.main([__file__, "-v", "-s"])
