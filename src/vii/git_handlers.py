@@ -798,7 +798,11 @@ class GitHandlersMixin:
             return
 
         try:
-            from .git_utils import git_checkout_branch, git_checkout_remote_branch
+            from .git_utils import (
+                clear_git_cache,
+                git_checkout_branch,
+                git_checkout_remote_branch,
+            )
 
             if is_remote:
                 success, message = git_checkout_remote_branch(self.git.root, branch)
@@ -806,6 +810,8 @@ class GitHandlersMixin:
                 success, message = git_checkout_branch(self.git.root, branch)
 
             if success:
+                # Clear git cache since branch changed
+                clear_git_cache()
                 self.notify(message, severity="information")
                 # Reload the directory tree to reflect branch changes
                 self._reload_tree()

@@ -4,6 +4,7 @@ import os
 import re
 import subprocess
 import sys
+from collections import OrderedDict
 from pathlib import Path
 
 from rich.console import Group
@@ -189,8 +190,9 @@ class Vii(KeyHandlersMixin, GitHandlersMixin, App):
         self.git = GitState()
         # Content update debounce timer
         self._content_update_timer = None
-        # Cache for rendered file content (LRU-style, max 30 files)
-        self._rendered_cache: dict[Path, tuple[str, object]] = {}
+        # Cache for rendered file content (LRU with OrderedDict, max 30 files)
+        # OrderedDict provides O(1) move_to_end() for efficient LRU implementation
+        self._rendered_cache: OrderedDict[Path, tuple[str, object]] = OrderedDict()
         self._cache_max_size = 30
         # Track currently displayed path to avoid redundant updates
         self._displayed_path: Path | None = None
@@ -1087,6 +1089,8 @@ class Vii(KeyHandlersMixin, GitHandlersMixin, App):
             # Use cached content if available (includes syntax highlighting)
             if path in self._rendered_cache:
                 content, rendered = self._rendered_cache[path]
+                # Move to end to mark as recently used (LRU)
+                self._rendered_cache.move_to_end(path)
                 self.original_content = content
                 self._displayed_path = path
                 # Render with highlight at line 0
@@ -1199,10 +1203,9 @@ class Vii(KeyHandlersMixin, GitHandlersMixin, App):
                 rendered_content = result["rendered_content"]
 
                 # Cache the rendered content for instant access later
-                # Evict oldest entries if cache is full
+                # Evict oldest entry if cache is full (OrderedDict FIFO: first item is oldest)
                 if len(self._rendered_cache) >= self._cache_max_size:
-                    oldest = next(iter(self._rendered_cache))
-                    del self._rendered_cache[oldest]
+                    self._rendered_cache.popitem(last=False)  # Remove oldest (first) item
                 self._rendered_cache[path] = (content, rendered_content)
 
                 # Verify we're still on the same file (user may have navigated away)

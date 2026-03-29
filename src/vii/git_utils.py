@@ -1,11 +1,26 @@
 """Git utilities for vii."""
 
 import subprocess
+from functools import lru_cache
 from pathlib import Path
 
 
+def clear_git_cache() -> None:
+    """Clear all git-related caches.
+
+    Call this after git operations that change repository state (e.g., branch checkout).
+    """
+    get_git_root.cache_clear()
+    is_git_repo.cache_clear()
+    get_git_branch.cache_clear()
+
+
+@lru_cache(maxsize=128)
 def get_git_root(path: Path) -> Path | None:
     """Get the root directory of the git repository.
+
+    This function is cached to avoid repeated subprocess calls for the same directory.
+    The git root doesn't change during a session, so caching is safe.
 
     Args:
         path: Path inside a git repository
@@ -27,8 +42,11 @@ def get_git_root(path: Path) -> Path | None:
         return None
 
 
+@lru_cache(maxsize=128)
 def is_git_repo(path: Path) -> bool:
     """Check if the given path is inside a git repository.
+
+    This function is cached to avoid repeated subprocess calls.
 
     Args:
         path: Path to check
@@ -49,8 +67,12 @@ def is_git_repo(path: Path) -> bool:
         return False
 
 
+@lru_cache(maxsize=128)
 def get_git_branch(path: Path) -> str | None:
     """Get the current git branch for the given path.
+
+    This function is cached, but note that branch can change if user switches branches.
+    Cache should be cleared after git operations that change the branch.
 
     Args:
         path: Path inside a git repository

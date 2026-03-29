@@ -217,6 +217,65 @@ class TestGitPerformance:
         )
         print(f"Cache contains {len(tree._status_indicator_cache)} pre-computed indicators")
 
+    def test_git_util_caching(self, tmp_path: Path) -> None:
+        """Test that git utilities use LRU cache effectively."""
+        from vii.git_utils import clear_git_cache, get_git_branch, get_git_root, is_git_repo
+
+        # Create a git repo
+        import subprocess
+
+        subprocess.run(["git", "init"], cwd=tmp_path, check=True, capture_output=True)
+        subprocess.run(
+            ["git", "config", "user.email", "test@example.com"],
+            cwd=tmp_path,
+            check=True,
+            capture_output=True,
+        )
+        subprocess.run(
+            ["git", "config", "user.name", "Test User"],
+            cwd=tmp_path,
+            check=True,
+            capture_output=True,
+        )
+
+        # Clear cache first
+        clear_git_cache()
+
+        # First call (cache miss)
+        start = time.perf_counter()
+        is_repo = is_git_repo(tmp_path)
+        first_call_time = time.perf_counter() - start
+
+        # Second call (cache hit - should be much faster)
+        start = time.perf_counter()
+        is_repo_cached = is_git_repo(tmp_path)
+        cached_call_time = time.perf_counter() - start
+
+        assert is_repo == is_repo_cached
+        # Cached call should be at least 10x faster (usually 100x+)
+        assert cached_call_time < first_call_time / 10, (
+            f"Cache hit ({cached_call_time*1000:.3f}ms) should be much faster than "
+            f"cache miss ({first_call_time*1000:.3f}ms)"
+        )
+
+        # Test get_git_root caching
+        start = time.perf_counter()
+        root1 = get_git_root(tmp_path)
+        first_root_time = time.perf_counter() - start
+
+        start = time.perf_counter()
+        root2 = get_git_root(tmp_path)
+        cached_root_time = time.perf_counter() - start
+
+        assert root1 == root2
+        assert cached_root_time < first_root_time / 10
+
+        print(
+            f"\nGit utility caching speedup:"
+            f"\n  is_git_repo: {first_call_time/cached_call_time:.1f}x faster when cached"
+            f"\n  get_git_root: {first_root_time/cached_root_time:.1f}x faster when cached"
+        )
+
 
 if __name__ == "__main__":
     pytest.main([__file__, "-v", "-s"])
