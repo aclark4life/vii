@@ -1,0 +1,150 @@
+"""Protocol definition for the Vii application interface.
+
+This module defines the ViiProtocol which formalizes the contract between
+the main Vii class and its mixins (KeyHandlersMixin, GitHandlersMixin).
+"""
+
+from pathlib import Path
+from typing import Any, Protocol
+
+from textual.containers import ScrollableContainer
+from textual.widgets import DirectoryTree, Static
+
+
+class ViiProtocol(Protocol):
+    """Protocol defining the interface contract for the Vii application.
+
+    This protocol specifies all attributes and methods that must be available
+    for the KeyHandlersMixin and GitHandlersMixin to function correctly.
+
+    Attributes:
+        # Search state
+        search_query: str
+        search_matches: list[int]
+        current_match_index: int
+        original_content: str
+        sidebar_search_query: str
+        sidebar_search_matches: list[Any]
+        sidebar_current_match_index: int
+
+        # Git state
+        git_branch: str | None
+        git_root: Path | None
+        git_log_page: int
+        git_log_page_size: int
+        git_log_output: str
+        git_log_entries: list[tuple[int, int]]
+        git_log_highlighted_entry: int
+        git_log_viewing: bool
+        git_commit_viewing: bool
+        git_commit_hash: str
+        git_blame_output: str
+        git_blame_viewing: bool
+        git_blame_highlighted_line: int
+        git_blame_file_path: Path | None
+        theme: str
+
+        # UI state
+        focused: Any
+        _dir_listing_entries: list[Path]
+        _dir_listing_highlighted: int
+        _content_highlighted_line: int
+        _displayed_path: Path | None
+    """
+
+    # Search state attributes
+    search_query: str
+    search_matches: list[int]
+    current_match_index: int
+    original_content: str
+    sidebar_search_query: str
+    sidebar_search_matches: list[Any]
+    sidebar_current_match_index: int
+    git_log_search_query: str
+    git_log_search_matches: list[int]
+    git_blame_search_query: str
+    git_blame_search_matches: list[int]
+
+    # Git state attributes
+    git_branch: str | None
+    git_root: Path | None
+    git_log_page: int
+    git_log_page_size: int
+    git_log_output: str
+    git_log_entries: list[tuple[int, int]]
+    git_log_highlighted_entry: int
+    git_log_viewing: bool
+    git_commit_viewing: bool
+    git_commit_hash: str
+    git_blame_output: str
+    git_blame_viewing: bool
+    git_blame_highlighted_line: int
+    git_blame_file_path: Path | None
+    theme: str
+
+    # UI state attributes
+    focused: Any
+    _dir_listing_entries: list[Path]
+    _dir_listing_highlighted: int
+    _content_highlighted_line: int
+    _displayed_path: Path | None
+
+    # Widget accessor methods
+    def _get_tree(self) -> DirectoryTree | None: ...
+    def _get_scroll_container(self) -> ScrollableContainer | None: ...
+    def _get_content_display(self) -> Static | None: ...
+
+    # App framework methods (from Textual App)
+    # Note: These are simplified signatures for the protocol
+    # Actual implementations will have more specific types from Textual
+    def notify(self, message: str, **kwargs: Any) -> None: ...
+    def query_one(self, *args: Any, **kwargs: Any) -> Any: ...
+    def query(self, *args: Any, **kwargs: Any) -> Any: ...
+    def push_screen(self, *args: Any, **kwargs: Any) -> Any: ...
+    def call_after_refresh(self, *args: Any, **kwargs: Any) -> Any: ...
+
+    # Content update methods
+    def _schedule_content_update(self) -> None: ...
+    def _update_content_display(self) -> None: ...
+    def _do_content_update(self) -> None: ...
+
+    # Rendering methods
+    def _render_log_with_highlight(self) -> None: ...
+    def _render_blame_with_highlight(self) -> None: ...
+    def _render_dir_listing_with_highlight(self) -> None: ...
+    def _render_file_content_with_highlight(self) -> None: ...
+
+    # Scrolling methods
+    def _scroll_to_log_entry(self) -> None: ...
+    def _scroll_to_blame_line(self) -> None: ...
+    def _scroll_to_dir_entry(self) -> None: ...
+    def _scroll_to_content_line(self) -> None: ...
+
+    # Search methods
+    def _show_content_search(self) -> None: ...
+    def _hide_content_search(self) -> None: ...
+    def _perform_search(self, query: str) -> None: ...
+    def _goto_next_match(self) -> None: ...
+    def _goto_previous_match(self) -> None: ...
+    def _show_sidebar_search(self) -> None: ...
+    def _hide_sidebar_search(self) -> None: ...
+    def _perform_sidebar_search(self, query: str) -> None: ...
+    def _goto_next_sidebar_match(self) -> None: ...
+    def _goto_previous_sidebar_match(self) -> None: ...
+    def _goto_next_git_log_match(self) -> None: ...
+    def _goto_previous_git_log_match(self) -> None: ...
+    def _goto_next_git_blame_match(self) -> None: ...
+    def _goto_previous_git_blame_match(self) -> None: ...
+
+    # Navigation methods
+    def _navigate_to_path(self, path: Path) -> None: ...
+    def _get_current_directory(self) -> Path: ...
+
+    # Git methods
+    def _show_git_commit(self) -> None: ...
+    def _show_blame_commit(self) -> None: ...
+    def _git_log(self, page: int = 0) -> None: ...
+    def action_git_log(self) -> None: ...
+    def _update_git_info(self, path: Path | None = None) -> None: ...
+    def _update_header(self) -> None: ...
+    def _reload_tree(self) -> None: ...

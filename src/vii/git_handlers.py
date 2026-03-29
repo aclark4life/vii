@@ -9,35 +9,26 @@ from rich.console import Group
 from rich.syntax import Syntax
 from rich.text import Text
 from textual.command import Hits
+from textual.containers import ScrollableContainer
+from textual.widgets import DirectoryTree, Static
 
 from vii.content import get_syntax_lexer, get_syntax_theme
 
 if TYPE_CHECKING:
+    # Import for documentation - the protocol defines the contract
     from textual.screen import Screen
+
+    from vii.protocol import ViiProtocol
 
 
 class GitHandlersMixin:
     """Mixin providing git-related functionality for the Vii app.
 
-    This mixin expects to be used with a class that has the following attributes:
-    - git_branch: str | None
-    - git_root: Path | None
-    - git_log_page: int
-    - git_log_page_size: int
-    - git_log_output: str
-    - git_log_entries: list[tuple[int, int]]
-    - git_log_highlighted_entry: int
-    - git_log_viewing: bool
-    - git_commit_viewing: bool
-    - git_commit_hash: str
-    - git_blame_output: str
-    - git_blame_viewing: bool
-    - git_blame_highlighted_line: int
-    - git_blame_file_path: Path | None
-    - theme: str
+    This mixin requires the host class to implement ViiProtocol.
+    The type stubs below ensure type safety - they match the protocol definition.
     """
 
-    # Type hints for attributes provided by the main class
+    # Attributes from ViiProtocol (provided by host class)
     git_branch: str | None
     git_root: Path | None
     git_log_page: int
@@ -54,27 +45,19 @@ class GitHandlersMixin:
     git_blame_highlighted_line: int
     theme: str
 
-    # Methods provided by the main class - only used for type checking
-    if TYPE_CHECKING:
-
-        def notify(
-            self,
-            message: str,
-            *,
-            title: str = "",
-            severity: str = "information",
-            timeout: float | None = None,
-        ) -> None: ...
-        def query_one(self, selector: Any, widget_type: type | None = None) -> Any: ...
-        def query(self, selector: Any) -> Any: ...
-        def push_screen(self, screen: "Screen", callback: Any = None) -> None: ...
-        def _get_current_directory(self) -> Path: ...
-        def _update_git_info(self, path: Path | None = None) -> None: ...
-        def _update_header(self) -> None: ...
-        def _reload_tree(self) -> None: ...
-        def _get_tree(self) -> Any: ...
-        def _get_scroll_container(self) -> Any: ...
-        def _get_content_display(self) -> Any: ...
+    # Methods from ViiProtocol (provided by host class)
+    # Using Any for Textual framework methods to avoid signature conflicts
+    def notify(self, *args: Any, **kwargs: Any) -> None: ...
+    def query_one(self, *args: Any, **kwargs: Any) -> Any: ...
+    def query(self, *args: Any, **kwargs: Any) -> Any: ...
+    def push_screen(self, *args: Any, **kwargs: Any) -> Any: ...
+    def _get_current_directory(self) -> Path: ...
+    def _update_git_info(self, path: Path | None = None) -> None: ...
+    def _update_header(self) -> None: ...
+    def _reload_tree(self) -> None: ...
+    def _get_tree(self) -> DirectoryTree | None: ...
+    def _get_scroll_container(self) -> ScrollableContainer | None: ...
+    def _get_content_display(self) -> Static | None: ...
 
     def _git_status(self) -> None:
         """Show git status."""

@@ -36,12 +36,17 @@ from vii.git_utils import (
     is_git_repo,
 )
 from vii.key_handlers import KeyHandlersMixin
+from vii.protocol import ViiProtocol
 from vii.tree_sitter_highlight import get_language_for_file, highlight_with_tree_sitter
 from vii.widgets import CommandPalette, GitDirectoryTree, VerticalSplitter
 
 
 class Vii(KeyHandlersMixin, GitHandlersMixin, App):
-    """vii - Terminal file browser."""
+    """vii - Terminal file browser.
+
+    This class implements ViiProtocol (structural typing - no explicit inheritance needed).
+    The protocol ensures type safety between the main class and its mixins.
+    """
 
     TITLE = "🤖 vii"
     COMMANDS = App.COMMANDS | {ConfigCommandProvider, GitCommandProvider}
