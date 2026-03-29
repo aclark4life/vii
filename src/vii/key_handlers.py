@@ -7,6 +7,8 @@ from textual import events
 from textual.containers import ScrollableContainer
 from textual.widgets import DirectoryTree, Input, Static
 
+from .git_state import GitState
+
 if TYPE_CHECKING:
     # Import for documentation - the protocol defines the contract
     from .protocol import ViiProtocol
@@ -21,20 +23,9 @@ class KeyHandlersMixin:
 
     # Attributes from ViiProtocol (provided by host class)
     focused: Any
-    git_log_viewing: bool
-    git_log_entries: list[tuple[int, int]]
-    git_log_highlighted_entry: int
-    git_commit_viewing: bool
-    git_commit_hash: str
-    git_blame_viewing: bool
-    git_blame_output: str
-    git_blame_highlighted_line: int
+    git: GitState
     search_query: str
     search_matches: list[int]
-    git_log_search_query: str
-    git_log_search_matches: list[int]
-    git_blame_search_query: str
-    git_blame_search_matches: list[int]
     _dir_listing_entries: list[Path]
     _dir_listing_highlighted: int
     _content_highlighted_line: int
@@ -77,10 +68,6 @@ class KeyHandlersMixin:
     def _perform_sidebar_search(self, query: str) -> None: ...
     def _goto_next_sidebar_match(self) -> None: ...
     def _goto_previous_sidebar_match(self) -> None: ...
-    def _goto_next_git_log_match(self) -> None: ...
-    def _goto_previous_git_log_match(self) -> None: ...
-    def _goto_next_git_blame_match(self) -> None: ...
-    def _goto_previous_git_blame_match(self) -> None: ...
 
     def on_key(self, event: events.Key) -> None:
         """Handle key presses for vi-style navigation."""
@@ -154,8 +141,8 @@ class KeyHandlersMixin:
                     self.original_content
                     and self._displayed_path
                     and self._displayed_path.is_file()
-                    and not self.git_log_viewing
-                    and not self.git_blame_viewing
+                    and not self.git.log_viewing
+                    and not self.git.blame_viewing
                     and not self._dir_listing_entries
                 ):
                     lines = self.original_content.split("\n")
@@ -187,8 +174,8 @@ class KeyHandlersMixin:
                     self.original_content
                     and self._displayed_path
                     and self._displayed_path.is_file()
-                    and not self.git_log_viewing
-                    and not self.git_blame_viewing
+                    and not self.git.log_viewing
+                    and not self.git.blame_viewing
                     and not self._dir_listing_entries
                 ):
                     page_size = max(1, scroll_container.size.height - 2)
@@ -214,13 +201,13 @@ class KeyHandlersMixin:
         elif content_focused and event.key == "n":
             event.prevent_default()
             # Check if searching in git log
-            if self.git_log_viewing and self.git_log_search_query:
+            if self.git.log_viewing and self.git.log_search_query:
                 self._goto_next_git_log_match()
             # Check if searching in git blame
-            elif self.git_blame_viewing and self.git_blame_search_query:
+            elif self.git.blame_viewing and self.git.blame_search_query:
                 self._goto_next_git_blame_match()
             # Check if viewing git log (without search) - navigate pages
-            elif self.git_log_viewing:
+            elif self.git.log_viewing:
                 self._git_log(getattr(self, "git_log_page", 0) + 1)
             else:
                 # Next search match in file
@@ -229,10 +216,10 @@ class KeyHandlersMixin:
             # Previous search match
             event.prevent_default()
             # Check if searching in git log
-            if self.git_log_viewing and self.git_log_search_query:
+            if self.git.log_viewing and self.git.log_search_query:
                 self._goto_previous_git_log_match()
             # Check if searching in git blame
-            elif self.git_blame_viewing and self.git_blame_search_query:
+            elif self.git.blame_viewing and self.git.blame_search_query:
                 self._goto_previous_git_blame_match()
             else:
                 # Previous search match in file
@@ -241,7 +228,7 @@ class KeyHandlersMixin:
             event.prevent_default()
             # Check if viewing git log
             git_log_page = getattr(self, "git_log_page", 0)
-            if self.git_log_viewing and git_log_page > 0:
+            if self.git.log_viewing and git_log_page > 0:
                 # Previous page of git log
                 self._git_log(git_log_page - 1)
         elif content_focused and event.key == "escape":
@@ -258,10 +245,10 @@ class KeyHandlersMixin:
                 scroll_container.scroll_right()
         elif content_focused and event.key == "enter":
             event.prevent_default()
-            if self.git_log_viewing and not self.git_commit_viewing:
+            if self.git.log_viewing and not self.git.commit_viewing:
                 # Show the highlighted commit details
                 self._show_git_commit()
-            elif self.git_blame_viewing and not self.git_commit_viewing:
+            elif self.git.blame_viewing and not self.git.commit_viewing:
                 # Show the commit for the highlighted blame line
                 self._show_blame_commit()
             elif self._dir_listing_entries and 0 <= self._dir_listing_highlighted < len(
@@ -314,20 +301,20 @@ class KeyHandlersMixin:
         """Handle vi key in content panel."""
         if action_key == "down":
             # When viewing a commit, just scroll (don't navigate log entries)
-            if self.git_commit_viewing:
+            if self.git.commit_viewing:
                 scroll_container.scroll_down()
-            elif self.git_log_viewing and self.git_log_entries:
+            elif self.git.log_viewing and self.git.log_entries:
                 # Move highlighted entry down in log view
-                if self.git_log_highlighted_entry < len(self.git_log_entries) - 1:
-                    self.git_log_highlighted_entry += 1
+                if self.git.log_highlighted_entry < len(self.git.log_entries) - 1:
+                    self.git.log_highlighted_entry += 1
                     self._render_log_with_highlight()
                     self._scroll_to_log_entry()
-            elif self.git_blame_viewing and self.git_blame_output:
+            elif self.git.blame_viewing and self.git.blame_output:
                 # Move highlighted line down in blame view
-                lines = self.git_blame_output.split("\n")
+                lines = self.git.blame_output.split("\n")
                 max_line = len(lines) - 1
-                if self.git_blame_highlighted_line < max_line:
-                    self.git_blame_highlighted_line += 1
+                if self.git.blame_highlighted_line < max_line:
+                    self.git.blame_highlighted_line += 1
                     self._render_blame_with_highlight()
                     self._scroll_to_blame_line()
             elif self._dir_listing_entries:
@@ -348,18 +335,18 @@ class KeyHandlersMixin:
                 scroll_container.scroll_down()
         elif action_key == "up":
             # When viewing a commit, just scroll (don't navigate log entries)
-            if self.git_commit_viewing:
+            if self.git.commit_viewing:
                 scroll_container.scroll_up()
-            elif self.git_log_viewing and self.git_log_entries:
+            elif self.git.log_viewing and self.git.log_entries:
                 # Move highlighted entry up in log view
-                if self.git_log_highlighted_entry > 0:
-                    self.git_log_highlighted_entry -= 1
+                if self.git.log_highlighted_entry > 0:
+                    self.git.log_highlighted_entry -= 1
                     self._render_log_with_highlight()
                     self._scroll_to_log_entry()
-            elif self.git_blame_viewing and self.git_blame_output:
+            elif self.git.blame_viewing and self.git.blame_output:
                 # Move highlighted line up in blame view
-                if self.git_blame_highlighted_line > 0:
-                    self.git_blame_highlighted_line -= 1
+                if self.git.blame_highlighted_line > 0:
+                    self.git.blame_highlighted_line -= 1
                     self._render_blame_with_highlight()
                     self._scroll_to_blame_line()
             elif self._dir_listing_entries:
@@ -378,14 +365,14 @@ class KeyHandlersMixin:
                 scroll_container.scroll_up()
         elif action_key == "home":
             # When viewing a commit, just scroll (don't navigate log entries)
-            if self.git_commit_viewing:
+            if self.git.commit_viewing:
                 scroll_container.scroll_home()
-            elif self.git_log_viewing and self.git_log_entries:
-                self.git_log_highlighted_entry = 0
+            elif self.git.log_viewing and self.git.log_entries:
+                self.git.log_highlighted_entry = 0
                 self._render_log_with_highlight()
                 scroll_container.scroll_home()
-            elif self.git_blame_viewing and self.git_blame_output:
-                self.git_blame_highlighted_line = 0
+            elif self.git.blame_viewing and self.git.blame_output:
+                self.git.blame_highlighted_line = 0
                 self._render_blame_with_highlight()
                 scroll_container.scroll_home()
             elif self._dir_listing_entries:
@@ -400,15 +387,15 @@ class KeyHandlersMixin:
                 scroll_container.scroll_home()
         elif action_key == "end":
             # When viewing a commit, just scroll (don't navigate log entries)
-            if self.git_commit_viewing:
+            if self.git.commit_viewing:
                 scroll_container.scroll_end()
-            elif self.git_log_viewing and self.git_log_entries:
-                self.git_log_highlighted_entry = len(self.git_log_entries) - 1
+            elif self.git.log_viewing and self.git.log_entries:
+                self.git.log_highlighted_entry = len(self.git.log_entries) - 1
                 self._render_log_with_highlight()
                 scroll_container.scroll_end()
-            elif self.git_blame_viewing and self.git_blame_output:
-                lines = self.git_blame_output.split("\n")
-                self.git_blame_highlighted_line = len(lines) - 1
+            elif self.git.blame_viewing and self.git.blame_output:
+                lines = self.git.blame_output.split("\n")
+                self.git.blame_highlighted_line = len(lines) - 1
                 self._render_blame_with_highlight()
                 scroll_container.scroll_end()
             elif self._dir_listing_entries:
@@ -462,18 +449,18 @@ class KeyHandlersMixin:
         event.prevent_default()
         if event.key == "down":
             # When viewing a commit, just scroll (don't navigate log entries)
-            if self.git_commit_viewing:
+            if self.git.commit_viewing:
                 scroll_container.scroll_down()
-            elif self.git_log_viewing and self.git_log_entries:
-                if self.git_log_highlighted_entry < len(self.git_log_entries) - 1:
-                    self.git_log_highlighted_entry += 1
+            elif self.git.log_viewing and self.git.log_entries:
+                if self.git.log_highlighted_entry < len(self.git.log_entries) - 1:
+                    self.git.log_highlighted_entry += 1
                     self._render_log_with_highlight()
                     self._scroll_to_log_entry()
-            elif self.git_blame_viewing and self.git_blame_output:
-                lines = self.git_blame_output.split("\n")
+            elif self.git.blame_viewing and self.git.blame_output:
+                lines = self.git.blame_output.split("\n")
                 max_line = len(lines) - 1
-                if self.git_blame_highlighted_line < max_line:
-                    self.git_blame_highlighted_line += 1
+                if self.git.blame_highlighted_line < max_line:
+                    self.git.blame_highlighted_line += 1
                     self._render_blame_with_highlight()
                     self._scroll_to_blame_line()
             elif self._dir_listing_entries:
@@ -493,16 +480,16 @@ class KeyHandlersMixin:
                 scroll_container.scroll_down()
         elif event.key == "up":
             # When viewing a commit, just scroll (don't navigate log entries)
-            if self.git_commit_viewing:
+            if self.git.commit_viewing:
                 scroll_container.scroll_up()
-            elif self.git_log_viewing and self.git_log_entries:
-                if self.git_log_highlighted_entry > 0:
-                    self.git_log_highlighted_entry -= 1
+            elif self.git.log_viewing and self.git.log_entries:
+                if self.git.log_highlighted_entry > 0:
+                    self.git.log_highlighted_entry -= 1
                     self._render_log_with_highlight()
                     self._scroll_to_log_entry()
-            elif self.git_blame_viewing and self.git_blame_output:
-                if self.git_blame_highlighted_line > 0:
-                    self.git_blame_highlighted_line -= 1
+            elif self.git.blame_viewing and self.git.blame_output:
+                if self.git.blame_highlighted_line > 0:
+                    self.git.blame_highlighted_line -= 1
                     self._render_blame_with_highlight()
                     self._scroll_to_blame_line()
             elif self._dir_listing_entries:
@@ -527,14 +514,14 @@ class KeyHandlersMixin:
 
     def _handle_escape_key(self, event: events.Key, tree: Any, scroll_container: Any) -> None:
         """Handle ESC key in content panel."""
-        if self.git_commit_viewing:
+        if self.git.commit_viewing:
             # Go back to git log or blame view
             event.prevent_default()
-            self.git_commit_viewing = False
-            self.git_commit_hash = ""
+            self.git.commit_viewing = False
+            self.git.commit_hash = ""
 
             # Check if we came from blame view or log view
-            if self.git_blame_viewing:
+            if self.git.blame_viewing:
                 # Go back to blame view
                 self._render_blame_with_highlight()
                 self._scroll_to_blame_line()
@@ -542,43 +529,43 @@ class KeyHandlersMixin:
                 # Go back to log view
                 self._render_log_with_highlight()
                 self._scroll_to_log_entry()
-        elif self.git_log_viewing and self.git_log_search_query:
+        elif self.git.log_viewing and self.git.log_search_query:
             # Clear git log search (but stay in git log view)
             event.prevent_default()
-            self.git_log_search_query = ""
-            self.git_log_search_matches = []
-            self.git_log_current_match_index = -1
+            self.git.log_search_query = ""
+            self.git.log_search_matches = []
+            self.git.log_current_match_index = -1
             self._render_log_with_highlight()
             self.notify("Search cleared")
-        elif self.git_log_viewing:
+        elif self.git.log_viewing:
             # Close git log display and restore file content
             event.prevent_default()
-            self.git_log_viewing = False
-            self.git_log_page = 0
-            self.git_log_output = ""
-            self.git_log_entries = []
-            self.git_log_highlighted_entry = -1
-            self.git_log_search_query = ""
-            self.git_log_search_matches = []
-            self.git_log_current_match_index = -1
-            self.git_commit_viewing = False
-            self.git_commit_hash = ""
+            self.git.log_viewing = False
+            self.git.log_page = 0
+            self.git.log_output = ""
+            self.git.log_entries = []
+            self.git.log_highlighted_entry = -1
+            self.git.log_search_query = ""
+            self.git.log_search_matches = []
+            self.git.log_current_match_index = -1
+            self.git.commit_viewing = False
+            self.git.commit_hash = ""
             self._update_content_display()
-        elif self.git_blame_viewing and self.git_blame_search_query:
+        elif self.git.blame_viewing and self.git.blame_search_query:
             # Clear git blame search (but stay in git blame view)
             event.prevent_default()
-            self.git_blame_search_query = ""
-            self.git_blame_search_matches = []
-            self.git_blame_current_match_index = -1
+            self.git.blame_search_query = ""
+            self.git.blame_search_matches = []
+            self.git.blame_current_match_index = -1
             self._render_blame_with_highlight()
             self.notify("Search cleared")
-        elif self.git_blame_viewing:
+        elif self.git.blame_viewing:
             # Close git blame display and restore file content
             event.prevent_default()
-            self.git_blame_viewing = False
-            self.git_blame_search_query = ""
-            self.git_blame_search_matches = []
-            self.git_blame_current_match_index = -1
+            self.git.blame_viewing = False
+            self.git.blame_search_query = ""
+            self.git.blame_search_matches = []
+            self.git.blame_current_match_index = -1
             self._update_content_display()
         elif self.search_query or self.search_matches:
             # Clear search and highlights (only if search is active)
@@ -717,10 +704,10 @@ class KeyHandlersMixin:
 
         if content_focused:
             # In content panel: handle special views
-            if self.git_log_viewing and not self.git_commit_viewing:
+            if self.git.log_viewing and not self.git.commit_viewing:
                 # Show the highlighted commit details
                 self._show_git_commit()
-            elif self.git_blame_viewing and not self.git_commit_viewing:
+            elif self.git.blame_viewing and not self.git.commit_viewing:
                 # Show the commit for the highlighted blame line
                 self._show_blame_commit()
             elif self._dir_listing_entries and 0 <= self._dir_listing_highlighted < len(

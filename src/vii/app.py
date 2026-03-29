@@ -28,6 +28,7 @@ from vii.content import (
     render_image_preview,
 )
 from vii.git_handlers import GitHandlersMixin
+from vii.git_state import GitState
 from vii.git_utils import (
     get_git_branch,
     get_git_file_status,
@@ -184,14 +185,8 @@ class Vii(KeyHandlersMixin, GitHandlersMixin, App):
         self.sidebar_search_query = ""
         self.sidebar_search_matches: list = []  # Tree nodes with matches
         self.sidebar_current_match_index = -1
-        # Git state
-        self.git_root: Path | None = None
-        self.git_branch: str | None = None
-        self.git_status: dict[str, int] = {}
-        self.git_file_status: dict[str, str] = {}
-        # Git log pagination
-        self.git_log_page: int = 0
-        self.git_log_page_size: int = 50
+        # Git state (centralized)
+        self.git = GitState()
         # Content update debounce timer
         self._content_update_timer = None
         # Cache for rendered file content (LRU-style, max 30 files)
@@ -203,24 +198,6 @@ class Vii(KeyHandlersMixin, GitHandlersMixin, App):
         self._dir_listing_entries: list[Path] = []
         # Track highlighted entry in directory listing (-1 = none)
         self._dir_listing_highlighted: int = -1
-        self.git_log_viewing: bool = False
-        self.git_log_output: str = ""  # Store log output for re-rendering
-        self.git_log_entries: list[
-            tuple[int, int]
-        ] = []  # List of (start_line, end_line) for each entry
-        self.git_log_highlighted_entry: int = -1  # Currently highlighted entry index (-1 = none)
-        self.git_log_search_query: str = ""  # Search query for git log
-        self.git_log_search_matches: list[int] = []  # Entry indices with matches
-        self.git_log_current_match_index: int = -1  # Current match index
-        self.git_commit_viewing: bool = False  # True when viewing a specific commit
-        self.git_commit_hash: str = ""  # Currently viewed commit hash
-        self.git_blame_viewing: bool = False
-        self.git_blame_output: str = ""  # Store blame output for re-rendering
-        self.git_blame_highlighted_line: int = -1  # Currently highlighted line (-1 = none)
-        self.git_blame_file_path: Path | None = None  # File being blamed (for syntax highlighting)
-        self.git_blame_search_query: str = ""  # Search query for git blame
-        self.git_blame_search_matches: list[int] = []  # Line numbers with matches
-        self.git_blame_current_match_index: int = -1  # Current match index
         # Panel maximize state
         self._sidebar_hidden: bool = False
         self._content_hidden: bool = False
@@ -425,7 +402,7 @@ class Vii(KeyHandlersMixin, GitHandlersMixin, App):
 
         with Vertical(id="sidebar"):
             tree = GitDirectoryTree(str(self.start_path))
-            tree.git_file_status = self.git_file_status
+            tree.git_file_status = self.git.file_status
             yield tree
             with Horizontal(id="sidebar-search-container"):
                 yield Input(
@@ -503,43 +480,43 @@ class Vii(KeyHandlersMixin, GitHandlersMixin, App):
 
         if is_git_repo(path):
             # Get and store the git root
-            self.git_root = get_git_root(path)
-            self.git_branch = get_git_branch(path)
-            self.git_status = get_git_status_summary(path)
-            self.git_file_status = get_git_file_status(path)
+            self.git.root = get_git_root(path)
+            self.git.branch = get_git_branch(path)
+            self.git.status = get_git_status_summary(path)
+            self.git.file_status = get_git_file_status(path)
 
             # Update the tree's git status
             try:
                 tree = self.query_one(GitDirectoryTree)
-                tree.git_file_status = self.git_file_status
+                tree.git_file_status = self.git.file_status
                 tree.refresh()
             except Exception:
                 pass  # Tree may not be mounted yet
         else:
-            self.git_root = None
-            self.git_branch = None
-            self.git_status = {}
-            self.git_file_status = {}
+            self.git.root = None
+            self.git.branch = None
+            self.git.status = {}
+            self.git.file_status = {}
 
         # Update the header to reflect new git info
         self._update_header()
 
     def _update_header(self) -> None:
         """Update the header with current git information."""
-        if self.git_branch:
+        if self.git.branch:
             # Build status indicators using emojis/symbols
             status_parts = []
-            if self.git_status.get("modified", 0) > 0:
-                status_parts.append(f"~{self.git_status['modified']}")
-            if self.git_status.get("added", 0) > 0:
-                status_parts.append(f"+{self.git_status['added']}")
-            if self.git_status.get("deleted", 0) > 0:
-                status_parts.append(f"-{self.git_status['deleted']}")
-            if self.git_status.get("untracked", 0) > 0:
-                status_parts.append(f"?{self.git_status['untracked']}")
+            if self.git.status.get("modified", 0) > 0:
+                status_parts.append(f"~{self.git.status['modified']}")
+            if self.git.status.get("added", 0) > 0:
+                status_parts.append(f"+{self.git.status['added']}")
+            if self.git.status.get("deleted", 0) > 0:
+                status_parts.append(f"-{self.git.status['deleted']}")
+            if self.git.status.get("untracked", 0) > 0:
+                status_parts.append(f"?{self.git.status['untracked']}")
 
             status_str = " ".join(status_parts) if status_parts else "✓"
-            self.sub_title = f"📂 {self.start_path} 🌿 {self.git_branch} {status_str}"
+            self.sub_title = f"📂 {self.start_path} 🌿 {self.git.branch} {status_str}"
         else:
             self.sub_title = f"📂 {self.start_path}"
 
@@ -596,7 +573,7 @@ class Vii(KeyHandlersMixin, GitHandlersMixin, App):
             # Create and mount a new tree with the new directory
             sidebar = self.query_one("#sidebar", Vertical)
             new_tree = GitDirectoryTree(str(directory))
-            new_tree.git_file_status = self.git_file_status
+            new_tree.git_file_status = self.git.file_status
             sidebar.mount(new_tree, before=0)  # Mount at the beginning
             new_tree.focus()
 
@@ -641,7 +618,7 @@ class Vii(KeyHandlersMixin, GitHandlersMixin, App):
             # Create and mount a new tree with the same directory
             sidebar = self.query_one("#sidebar", Vertical)
             new_tree = GitDirectoryTree(str(self.start_path))
-            new_tree.git_file_status = self.git_file_status
+            new_tree.git_file_status = self.git.file_status
             sidebar.mount(new_tree, before=0)  # Mount at the beginning
 
             # Restore expanded state and cursor position
@@ -1040,8 +1017,8 @@ class Vii(KeyHandlersMixin, GitHandlersMixin, App):
         """
         try:
             rel_path = str(path.relative_to(self.start_path))
-            if rel_path in self.git_file_status:
-                status_code = self.git_file_status[rel_path]
+            if rel_path in self.git.file_status:
+                status_code = self.git.file_status[rel_path]
                 if "M" in status_code:
                     return "~ "
                 elif "A" in status_code:
@@ -1061,14 +1038,8 @@ class Vii(KeyHandlersMixin, GitHandlersMixin, App):
         # Reset search state
         self.search_matches = []
         self.current_match_index = -1
-        self.git_log_viewing = False
-        self.git_log_output = ""
-        self.git_log_entries = []
-        self.git_log_highlighted_entry = -1
-        self.git_commit_viewing = False
-        self.git_commit_hash = ""
-        self.git_blame_viewing = False
-        self.git_log_page = 0
+        self.git.reset_log()
+        self.git.reset_blame()
 
         try:
             tree = self._get_tree()
@@ -1080,7 +1051,7 @@ class Vii(KeyHandlersMixin, GitHandlersMixin, App):
             # Check if we've entered a different git repo (or left one)
             current_dir = path.parent if path.is_file() else path
             new_git_root = get_git_root(current_dir)
-            if new_git_root != self.git_root:
+            if new_git_root != self.git.root:
                 # Git repo changed - update git info
                 self._update_git_info(current_dir)
 
@@ -1242,14 +1213,8 @@ class Vii(KeyHandlersMixin, GitHandlersMixin, App):
                 self.original_content = content
                 self.search_matches = []
                 self.current_match_index = -1
-                self.git_log_viewing = False
-                self.git_log_output = ""
-                self.git_log_entries = []
-                self.git_log_highlighted_entry = -1
-                self.git_commit_viewing = False
-                self.git_commit_hash = ""
-                self.git_blame_viewing = False
-                self.git_log_page = 0
+                self.git.reset_log()
+                self.git.reset_blame()
                 self._displayed_path = path
 
                 # Render with highlight at line 0
@@ -1323,14 +1288,8 @@ class Vii(KeyHandlersMixin, GitHandlersMixin, App):
                 scroll_container.scroll_home(animate=False)
                 self.search_matches = []
                 self.current_match_index = -1
-                self.git_log_viewing = False
-                self.git_log_output = ""
-                self.git_log_entries = []
-                self.git_log_highlighted_entry = -1
-                self.git_commit_viewing = False
-                self.git_commit_hash = ""
-                self.git_blame_viewing = False
-                self.git_log_page = 0
+                self.git.reset_log()
+                self.git.reset_blame()
         except Exception:
             pass
 
@@ -1464,21 +1423,21 @@ class Vii(KeyHandlersMixin, GitHandlersMixin, App):
             self._clear_search_highlights()
             self.search_matches = []
             self.current_match_index = -1
-            self.git_log_search_query = ""
-            self.git_log_search_matches = []
-            self.git_log_current_match_index = -1
-            self.git_blame_search_query = ""
-            self.git_blame_search_matches = []
-            self.git_blame_current_match_index = -1
+            self.git.log_search_query = ""
+            self.git.log_search_matches = []
+            self.git.log_current_match_index = -1
+            self.git.blame_search_query = ""
+            self.git.blame_search_matches = []
+            self.git.blame_current_match_index = -1
             return
 
         # Check if we're in git log view
-        if self.git_log_viewing and not self.git_commit_viewing:
+        if self.git.log_viewing and not self.git.commit_viewing:
             self._perform_git_log_search(query)
             return
 
         # Check if we're in git blame view
-        if self.git_blame_viewing and not self.git_commit_viewing:
+        if self.git.blame_viewing and not self.git.commit_viewing:
             self._perform_git_blame_search(query)
             return
 
@@ -1621,129 +1580,129 @@ class Vii(KeyHandlersMixin, GitHandlersMixin, App):
     def _perform_git_log_search(self, query: str) -> None:
         """Search for commits in git log matching the query."""
         self.notify(f"DEBUG: _perform_git_log_search called with query='{query}'")
-        if not query or not self.git_log_output:
-            self.notify(f"DEBUG: Early return - query={bool(query)}, git_log_output={bool(self.git_log_output)}")
+        if not query or not self.git.log_output:
+            self.notify(f"DEBUG: Early return - query={bool(query)}, git_log_output={bool(self.git.log_output)}")
             return
 
-        self.git_log_search_query = query
-        self.git_log_search_matches = []
+        self.git.log_search_query = query
+        self.git.log_search_matches = []
 
         # Search through git log entries
-        lines = self.git_log_output.split("\n")
-        for entry_idx, (start_line, end_line) in enumerate(self.git_log_entries):
+        lines = self.git.log_output.split("\n")
+        for entry_idx, (start_line, end_line) in enumerate(self.git.log_entries):
             # Check if any line in this entry matches the query
             for line_idx in range(start_line, end_line + 1):
                 if line_idx < len(lines):
                     if query.lower() in lines[line_idx].lower():
-                        self.git_log_search_matches.append(entry_idx)
+                        self.git.log_search_matches.append(entry_idx)
                         break  # Found match in this entry, move to next entry
 
-        if not self.git_log_search_matches:
+        if not self.git.log_search_matches:
             self.notify(f"Pattern not found: {query}", severity="warning")
             return
 
         # Go to first match
-        self.git_log_current_match_index = 0
-        self.git_log_highlighted_entry = self.git_log_search_matches[0]
+        self.git.log_current_match_index = 0
+        self.git.log_highlighted_entry = self.git.log_search_matches[0]
         self._render_log_with_highlight()
         self._scroll_to_log_entry()
-        self.notify(f"Found {len(self.git_log_search_matches)} commit(s)")
+        self.notify(f"Found {len(self.git.log_search_matches)} commit(s)")
 
     def _goto_next_git_log_match(self) -> None:
         """Go to the next git log search match."""
-        if not self.git_log_search_matches:
+        if not self.git.log_search_matches:
             self.notify("No matches to navigate", severity="warning")
             return
 
-        self.git_log_current_match_index = (
-            self.git_log_current_match_index + 1
-        ) % len(self.git_log_search_matches)
-        self.git_log_highlighted_entry = self.git_log_search_matches[
-            self.git_log_current_match_index
+        self.git.log_current_match_index = (
+            self.git.log_current_match_index + 1
+        ) % len(self.git.log_search_matches)
+        self.git.log_highlighted_entry = self.git.log_search_matches[
+            self.git.log_current_match_index
         ]
         self._render_log_with_highlight()
         self._scroll_to_log_entry()
         self.notify(
-            f"Match {self.git_log_current_match_index + 1}/{len(self.git_log_search_matches)}"
+            f"Match {self.git.log_current_match_index + 1}/{len(self.git.log_search_matches)}"
         )
 
     def _goto_previous_git_log_match(self) -> None:
         """Go to the previous git log search match."""
-        if not self.git_log_search_matches:
+        if not self.git.log_search_matches:
             self.notify("No matches to navigate", severity="warning")
             return
 
-        self.git_log_current_match_index = (
-            self.git_log_current_match_index - 1
-        ) % len(self.git_log_search_matches)
-        self.git_log_highlighted_entry = self.git_log_search_matches[
-            self.git_log_current_match_index
+        self.git.log_current_match_index = (
+            self.git.log_current_match_index - 1
+        ) % len(self.git.log_search_matches)
+        self.git.log_highlighted_entry = self.git.log_search_matches[
+            self.git.log_current_match_index
         ]
         self._render_log_with_highlight()
         self._scroll_to_log_entry()
         self.notify(
-            f"Match {self.git_log_current_match_index + 1}/{len(self.git_log_search_matches)}"
+            f"Match {self.git.log_current_match_index + 1}/{len(self.git.log_search_matches)}"
         )
 
     def _perform_git_blame_search(self, query: str) -> None:
         """Search for lines in git blame matching the query."""
-        if not query or not self.git_blame_output:
+        if not query or not self.git.blame_output:
             return
 
-        self.git_blame_search_query = query
-        self.git_blame_search_matches = []
+        self.git.blame_search_query = query
+        self.git.blame_search_matches = []
 
         # Search through git blame lines
-        lines = self.git_blame_output.split("\n")
+        lines = self.git.blame_output.split("\n")
         for i, line in enumerate(lines):
             if query.lower() in line.lower():
-                self.git_blame_search_matches.append(i)
+                self.git.blame_search_matches.append(i)
 
-        if not self.git_blame_search_matches:
+        if not self.git.blame_search_matches:
             self.notify(f"Pattern not found: {query}", severity="warning")
             return
 
         # Go to first match
-        self.git_blame_current_match_index = 0
-        self.git_blame_highlighted_line = self.git_blame_search_matches[0]
+        self.git.blame_current_match_index = 0
+        self.git.blame_highlighted_line = self.git.blame_search_matches[0]
         self._render_blame_with_highlight()
         self._scroll_to_blame_line()
-        self.notify(f"Found {len(self.git_blame_search_matches)} line(s)")
+        self.notify(f"Found {len(self.git.blame_search_matches)} line(s)")
 
     def _goto_next_git_blame_match(self) -> None:
         """Go to the next git blame search match."""
-        if not self.git_blame_search_matches:
+        if not self.git.blame_search_matches:
             self.notify("No matches to navigate", severity="warning")
             return
 
-        self.git_blame_current_match_index = (
-            self.git_blame_current_match_index + 1
-        ) % len(self.git_blame_search_matches)
-        self.git_blame_highlighted_line = self.git_blame_search_matches[
-            self.git_blame_current_match_index
+        self.git.blame_current_match_index = (
+            self.git.blame_current_match_index + 1
+        ) % len(self.git.blame_search_matches)
+        self.git.blame_highlighted_line = self.git.blame_search_matches[
+            self.git.blame_current_match_index
         ]
         self._render_blame_with_highlight()
         self._scroll_to_blame_line()
         self.notify(
-            f"Match {self.git_blame_current_match_index + 1}/{len(self.git_blame_search_matches)}"
+            f"Match {self.git.blame_current_match_index + 1}/{len(self.git.blame_search_matches)}"
         )
 
     def _goto_previous_git_blame_match(self) -> None:
         """Go to the previous git blame search match."""
-        if not self.git_blame_search_matches:
+        if not self.git.blame_search_matches:
             self.notify("No matches to navigate", severity="warning")
             return
 
-        self.git_blame_current_match_index = (
-            self.git_blame_current_match_index - 1
-        ) % len(self.git_blame_search_matches)
-        self.git_blame_highlighted_line = self.git_blame_search_matches[
-            self.git_blame_current_match_index
+        self.git.blame_current_match_index = (
+            self.git.blame_current_match_index - 1
+        ) % len(self.git.blame_search_matches)
+        self.git.blame_highlighted_line = self.git.blame_search_matches[
+            self.git.blame_current_match_index
         ]
         self._render_blame_with_highlight()
         self._scroll_to_blame_line()
         self.notify(
-            f"Match {self.git_blame_current_match_index + 1}/{len(self.git_blame_search_matches)}"
+            f"Match {self.git.blame_current_match_index + 1}/{len(self.git.blame_search_matches)}"
         )
 
     def on_input_submitted(self, event: Input.Submitted) -> None:
@@ -1808,7 +1767,7 @@ class Vii(KeyHandlersMixin, GitHandlersMixin, App):
             self.call_later(scroll_container.stop_animation, "scroll_y")
 
             # Handle git log entry highlighting
-            if self.git_log_viewing and self.git_log_entries and not self.git_commit_viewing:
+            if self.git.log_viewing and self.git.log_entries and not self.git.commit_viewing:
                 # Calculate clicked line based on screen position
                 container_region = scroll_container.region
                 scroll_y = int(scroll_container.scroll_y)
@@ -1818,9 +1777,9 @@ class Vii(KeyHandlersMixin, GitHandlersMixin, App):
                 relative_y = event.screen_y - container_region.y - 2 + scroll_y - 2
 
                 # Find which entry contains this line
-                for i, (start_line, end_line) in enumerate(self.git_log_entries):
+                for i, (start_line, end_line) in enumerate(self.git.log_entries):
                     if start_line <= relative_y <= end_line:
-                        self.git_log_highlighted_entry = i
+                        self.git.log_highlighted_entry = i
                         self._render_log_with_highlight()
                         # Double-click opens the commit details
                         if event.chain >= 2:
@@ -1828,7 +1787,7 @@ class Vii(KeyHandlersMixin, GitHandlersMixin, App):
                         break
 
             # Handle blame view line highlighting
-            elif self.git_blame_viewing and self.git_blame_output:
+            elif self.git.blame_viewing and self.git.blame_output:
                 # Calculate clicked line based on screen position
                 # Get the scroll container's position on screen
                 container_region = scroll_container.region
@@ -1841,9 +1800,9 @@ class Vii(KeyHandlersMixin, GitHandlersMixin, App):
                 relative_y = event.screen_y - container_region.y - 2 + scroll_y
 
                 # Validate line number
-                lines = self.git_blame_output.split("\n")
+                lines = self.git.blame_output.split("\n")
                 if 0 <= relative_y < len(lines):
-                    self.git_blame_highlighted_line = relative_y
+                    self.git.blame_highlighted_line = relative_y
                     self._render_blame_with_highlight()
 
             # Handle directory listing clicks
@@ -2033,12 +1992,9 @@ class Vii(KeyHandlersMixin, GitHandlersMixin, App):
 
     def action_git_blame(self) -> None:
         """Toggle git blame for the current file."""
-        if self.git_blame_viewing:
+        if self.git.blame_viewing:
             # Turn off blame and restore file content
-            self.git_blame_viewing = False
-            self.git_blame_output = ""
-            self.git_blame_highlighted_line = -1
-            self.git_blame_file_path = None
+            self.git.reset_blame()
             self._update_content_display()
             # Get the current file name for the notification
             tree = self._get_tree()
@@ -2050,15 +2006,9 @@ class Vii(KeyHandlersMixin, GitHandlersMixin, App):
 
     def action_git_log(self) -> None:
         """Toggle git log."""
-        if self.git_log_viewing:
+        if self.git.log_viewing:
             # Turn off log and restore file content
-            self.git_log_viewing = False
-            self.git_log_page = 0
-            self.git_log_output = ""
-            self.git_log_entries = []
-            self.git_log_highlighted_entry = -1
-            self.git_commit_viewing = False
-            self.git_commit_hash = ""
+            self.git.reset_log()
             self._update_content_display()
             self.notify("Hiding git log")
         else:

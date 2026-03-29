@@ -13,6 +13,7 @@ from textual.containers import ScrollableContainer
 from textual.widgets import DirectoryTree, Static
 
 from vii.content import get_syntax_lexer, get_syntax_theme
+from vii.git_state import GitState
 
 if TYPE_CHECKING:
     # Import for documentation - the protocol defines the contract
@@ -29,20 +30,7 @@ class GitHandlersMixin:
     """
 
     # Attributes from ViiProtocol (provided by host class)
-    git_branch: str | None
-    git_root: Path | None
-    git_log_page: int
-    git_log_page_size: int
-    git_log_output: str
-    git_log_entries: list[tuple[int, int]]
-    git_log_highlighted_entry: int
-    git_log_viewing: bool
-    git_commit_viewing: bool
-    git_commit_hash: str
-    git_blame_output: str
-    git_blame_viewing: bool
-    git_blame_file_path: Path | None
-    git_blame_highlighted_line: int
+    git: GitState
     theme: str
 
     # Methods from ViiProtocol (provided by host class)
@@ -61,14 +49,14 @@ class GitHandlersMixin:
 
     def _git_status(self) -> None:
         """Show git status."""
-        if not self.git_branch or not self.git_root:
+        if not self.git.branch or not self.git.root:
             self.notify("Not in a git repository", severity="warning")
             return
 
         try:
             result = subprocess.run(
                 ["git", "status", "--short"],
-                cwd=str(self.git_root),
+                cwd=str(self.git.root),
                 capture_output=True,
                 text=True,
                 timeout=5,
@@ -92,7 +80,7 @@ class GitHandlersMixin:
         Args:
             page: Page number to display (0-based)
         """
-        if not self.git_branch:
+        if not self.git.branch:
             self.notify("Not in a git repository", severity="warning")
             return
 
@@ -100,18 +88,18 @@ class GitHandlersMixin:
             from .git_utils import get_git_log
 
             current_dir = self._get_current_directory()
-            skip = page * self.git_log_page_size
-            log_output = get_git_log(current_dir, max_count=self.git_log_page_size, skip=skip)
+            skip = page * self.git.log_page_size
+            log_output = get_git_log(current_dir, max_count=self.git.log_page_size, skip=skip)
 
             if log_output:
                 # Store log output and parse entries
-                self.git_log_output = log_output
-                self.git_log_entries = self._parse_git_log_entries(log_output)
-                self.git_log_highlighted_entry = 0 if self.git_log_entries else -1
+                self.git.log_output = log_output
+                self.git.log_entries = self._parse_git_log_entries(log_output)
+                self.git.log_highlighted_entry = 0 if self.git.log_entries else -1
 
                 # Update state
-                self.git_log_page = page
-                self.git_log_viewing = True
+                self.git.log_page = page
+                self.git.log_viewing = True
 
                 # Render with highlighting
                 self._render_log_with_highlight()
@@ -175,14 +163,14 @@ class GitHandlersMixin:
 
     def _render_log_with_highlight(self) -> None:
         """Render git log output with entry highlighting."""
-        if not self.git_log_output:
+        if not self.git.log_output:
             return
 
-        lines = self.git_log_output.split("\n")
+        lines = self.git.log_output.split("\n")
         text = Text()
 
         # Add header
-        text.append(f"📜 Git Log (Page {self.git_log_page + 1})\n\n", style="bold")
+        text.append(f"📜 Git Log (Page {self.git.log_page + 1})\n\n", style="bold")
 
         # Get terminal width to pad highlighted lines
         scroll_container = self._get_scroll_container()
@@ -191,8 +179,8 @@ class GitHandlersMixin:
         # Get highlighted entry boundaries
         highlight_start = -1
         highlight_end = -1
-        if 0 <= self.git_log_highlighted_entry < len(self.git_log_entries):
-            highlight_start, highlight_end = self.git_log_entries[self.git_log_highlighted_entry]
+        if 0 <= self.git.log_highlighted_entry < len(self.git.log_entries):
+            highlight_start, highlight_end = self.git.log_entries[self.git.log_highlighted_entry]
 
         for i, line in enumerate(lines):
             if highlight_start <= i <= highlight_end:
@@ -209,7 +197,7 @@ class GitHandlersMixin:
         text.append(" = Up/Down  ", style="dim")
         text.append("Enter", style="bold cyan")
         text.append(" = Show commit  ", style="dim")
-        if self.git_log_page > 0:
+        if self.git.log_page > 0:
             text.append("p", style="bold cyan")
             text.append(" = Prev page  ", style="dim")
         text.append("n", style="bold cyan")
@@ -223,10 +211,10 @@ class GitHandlersMixin:
 
     def _scroll_to_log_entry(self) -> None:
         """Scroll to keep the highlighted log entry visible."""
-        if self.git_log_highlighted_entry < 0 or not self.git_log_entries:
+        if self.git.log_highlighted_entry < 0 or not self.git.log_entries:
             return
 
-        entry_start, _ = self.git_log_entries[self.git_log_highlighted_entry]
+        entry_start, _ = self.git.log_entries[self.git.log_highlighted_entry]
         scroll_container = self._get_scroll_container()
         if not scroll_container:
             return
@@ -251,11 +239,11 @@ class GitHandlersMixin:
         Returns:
             The commit hash string, or None if not found
         """
-        if self.git_log_highlighted_entry < 0 or not self.git_log_entries:
+        if self.git.log_highlighted_entry < 0 or not self.git.log_entries:
             return None
 
-        entry_start, _ = self.git_log_entries[self.git_log_highlighted_entry]
-        lines = self.git_log_output.split("\n")
+        entry_start, _ = self.git.log_entries[self.git.log_highlighted_entry]
+        lines = self.git.log_output.split("\n")
 
         if entry_start >= len(lines):
             return None
@@ -277,14 +265,14 @@ class GitHandlersMixin:
             self.notify("No commit selected", severity="warning")
             return
 
-        if not self.git_root:
+        if not self.git.root:
             self.notify("Not in a git repository", severity="warning")
             return
 
         try:
             from .git_utils import get_git_show
 
-            show_output = get_git_show(self.git_root, commit_hash)
+            show_output = get_git_show(self.git.root, commit_hash)
 
             if show_output:
                 # Create a header with commit info
@@ -307,8 +295,8 @@ class GitHandlersMixin:
                 content_display.update(Group(text, syntax))
 
                 # Update state
-                self.git_commit_viewing = True
-                self.git_commit_hash = commit_hash
+                self.git.commit_viewing = True
+                self.git.commit_hash = commit_hash
 
                 # Scroll to top
                 scroll_container = self._get_scroll_container()
@@ -323,7 +311,7 @@ class GitHandlersMixin:
 
     def _git_add_current(self) -> None:
         """Add the current file to git."""
-        if not self.git_branch or not self.git_root:
+        if not self.git.branch or not self.git.root:
             self.notify("Not in a git repository", severity="warning")
             return
 
@@ -338,10 +326,10 @@ class GitHandlersMixin:
             return
 
         try:
-            rel_path = path.relative_to(self.git_root)
+            rel_path = path.relative_to(self.git.root)
             subprocess.run(
                 ["git", "add", str(rel_path)],
-                cwd=str(self.git_root),
+                cwd=str(self.git.root),
                 check=True,
                 timeout=5,
             )
@@ -352,14 +340,14 @@ class GitHandlersMixin:
 
     def _git_add_all(self) -> None:
         """Add all changes to git."""
-        if not self.git_branch or not self.git_root:
+        if not self.git.branch or not self.git.root:
             self.notify("Not in a git repository", severity="warning")
             return
 
         try:
             subprocess.run(
                 ["git", "add", "."],
-                cwd=str(self.git_root),
+                cwd=str(self.git.root),
                 check=True,
                 timeout=5,
             )
@@ -370,7 +358,7 @@ class GitHandlersMixin:
 
     def _git_commit(self) -> None:
         """Commit changes (opens editor for commit message)."""
-        if not self.git_branch or not self.git_root:
+        if not self.git.branch or not self.git.root:
             self.notify("Not in a git repository", severity="warning")
             return
 
@@ -378,7 +366,7 @@ class GitHandlersMixin:
         try:
             subprocess.run(
                 ["git", "commit"],
-                cwd=str(self.git_root),
+                cwd=str(self.git.root),
                 timeout=300,  # 5 minutes for commit message
             )
             self._git_refresh()
@@ -387,7 +375,7 @@ class GitHandlersMixin:
 
     def _git_push(self) -> None:
         """Push changes to remote."""
-        if not self.git_branch or not self.git_root:
+        if not self.git.branch or not self.git.root:
             self.notify("Not in a git repository", severity="warning")
             return
 
@@ -395,7 +383,7 @@ class GitHandlersMixin:
         try:
             result = subprocess.run(
                 ["git", "push"],
-                cwd=str(self.git_root),
+                cwd=str(self.git.root),
                 capture_output=True,
                 text=True,
                 timeout=60,
@@ -409,7 +397,7 @@ class GitHandlersMixin:
 
     def _git_pull(self) -> None:
         """Pull changes from remote."""
-        if not self.git_branch or not self.git_root:
+        if not self.git.branch or not self.git.root:
             self.notify("Not in a git repository", severity="warning")
             return
 
@@ -417,7 +405,7 @@ class GitHandlersMixin:
         try:
             result = subprocess.run(
                 ["git", "pull"],
-                cwd=str(self.git_root),
+                cwd=str(self.git.root),
                 capture_output=True,
                 text=True,
                 timeout=60,
@@ -434,7 +422,7 @@ class GitHandlersMixin:
 
     def _git_diff_current(self) -> None:
         """Show git diff for the current file."""
-        if not self.git_branch or not self.git_root:
+        if not self.git.branch or not self.git.root:
             self.notify("Not in a git repository", severity="warning")
             return
 
@@ -449,10 +437,10 @@ class GitHandlersMixin:
             return
 
         try:
-            rel_path = path.relative_to(self.git_root)
+            rel_path = path.relative_to(self.git.root)
             result = subprocess.run(
                 ["git", "diff", "HEAD", str(rel_path)],
-                cwd=str(self.git_root),
+                cwd=str(self.git.root),
                 capture_output=True,
                 text=True,
                 timeout=5,
@@ -470,7 +458,7 @@ class GitHandlersMixin:
 
     def _git_blame_current(self) -> None:
         """Show git blame for the current file."""
-        if not self.git_branch or not self.git_root:
+        if not self.git.branch or not self.git.root:
             self.notify("Not in a git repository", severity="warning")
             return
 
@@ -497,20 +485,20 @@ class GitHandlersMixin:
         try:
             from .git_utils import get_git_blame_file
 
-            rel_path = path.relative_to(self.git_root)
-            blame_output = get_git_blame_file(self.git_root, str(rel_path))
+            rel_path = path.relative_to(self.git.root)
+            blame_output = get_git_blame_file(self.git.root, str(rel_path))
 
             if blame_output:
                 # Store blame output and file path for re-rendering with highlights
-                self.git_blame_output = blame_output
-                self.git_blame_highlighted_line = 0  # Start at first line
-                self.git_blame_file_path = path  # Store path for syntax highlighting
+                self.git.blame_output = blame_output
+                self.git.blame_highlighted_line = 0  # Start at first line
+                self.git.blame_file_path = path  # Store path for syntax highlighting
 
                 # Display blame in content panel
                 self._render_blame_with_highlight()
 
                 # Update state so ESC can restore file content
-                self.git_blame_viewing = True
+                self.git.blame_viewing = True
 
                 # Focus the content panel
                 scroll_container = self._get_scroll_container()
@@ -525,10 +513,10 @@ class GitHandlersMixin:
 
     def _render_blame_with_highlight(self) -> None:
         """Render git blame output with optional line highlighting and syntax highlighting."""
-        if not self.git_blame_output:
+        if not self.git.blame_output:
             return
 
-        lines = self.git_blame_output.split("\n")
+        lines = self.git.blame_output.split("\n")
         text = Text()
 
         # Get terminal width to pad lines
@@ -538,8 +526,8 @@ class GitHandlersMixin:
         # Get syntax highlighting info for the file
         lexer = None
         syntax_theme = get_syntax_theme(self.theme)
-        if self.git_blame_file_path:
-            lexer = get_syntax_lexer(self.git_blame_file_path)
+        if self.git.blame_file_path:
+            lexer = get_syntax_lexer(self.git.blame_file_path)
 
         # Regex to parse git blame output: hash [filename] (author date line_num) code
         # e.g.: "abc123de src/file.py (John Doe   2024-01-15  10) some code here"
@@ -547,7 +535,7 @@ class GitHandlersMixin:
         blame_pattern = re.compile(r"^(\^?[a-f0-9]+[^)]+\)\s?)(.*)")
 
         for i, line in enumerate(lines):
-            is_highlighted = i == self.git_blame_highlighted_line
+            is_highlighted = i == self.git.blame_highlighted_line
 
             # Try to parse blame line into metadata and code
             match = blame_pattern.match(line)
@@ -605,7 +593,7 @@ class GitHandlersMixin:
 
     def _scroll_to_blame_line(self) -> None:
         """Scroll to keep the highlighted blame line visible."""
-        if self.git_blame_highlighted_line < 0:
+        if self.git.blame_highlighted_line < 0:
             return
 
         scroll_container = self._get_scroll_container()
@@ -613,7 +601,7 @@ class GitHandlersMixin:
             return
         # Each line is roughly 1 unit of scroll height
         # Add 1 for padding at top
-        target_y = self.git_blame_highlighted_line + 1
+        target_y = self.git.blame_highlighted_line + 1
 
         # Get visible region
         visible_top = scroll_container.scroll_y
@@ -634,14 +622,14 @@ class GitHandlersMixin:
         Returns:
             The commit hash string, or None if not found
         """
-        if self.git_blame_highlighted_line < 0 or not self.git_blame_output:
+        if self.git.blame_highlighted_line < 0 or not self.git.blame_output:
             return None
 
-        lines = self.git_blame_output.split("\n")
-        if self.git_blame_highlighted_line >= len(lines):
+        lines = self.git.blame_output.split("\n")
+        if self.git.blame_highlighted_line >= len(lines):
             return None
 
-        line = lines[self.git_blame_highlighted_line]
+        line = lines[self.git.blame_highlighted_line]
 
         # Parse the blame line to extract the commit hash
         # Format: "^?[a-f0-9]+ [filename] (author date line_num) code"
@@ -659,14 +647,14 @@ class GitHandlersMixin:
             self.notify("No commit found on this line", severity="warning")
             return
 
-        if not self.git_root:
+        if not self.git.root:
             self.notify("Not in a git repository", severity="warning")
             return
 
         try:
             from .git_utils import get_git_show
 
-            show_output = get_git_show(self.git_root, commit_hash)
+            show_output = get_git_show(self.git.root, commit_hash)
 
             if show_output:
                 # Create a header with commit info
@@ -689,8 +677,8 @@ class GitHandlersMixin:
                 content_display.update(Group(text, syntax))
 
                 # Update state - we're now viewing a commit from blame
-                self.git_commit_viewing = True
-                self.git_commit_hash = commit_hash
+                self.git.commit_viewing = True
+                self.git.commit_hash = commit_hash
                 # Keep git_blame_viewing True so ESC can go back to blame
 
                 # Scroll to top
@@ -706,7 +694,7 @@ class GitHandlersMixin:
 
     def _git_switch_branch(self) -> None:
         """Show branch selection and switch to selected branch."""
-        if not self.git_branch or not self.git_root:
+        if not self.git.branch or not self.git.root:
             self.notify("Not in a git repository", severity="warning")
             return
 
@@ -716,12 +704,12 @@ class GitHandlersMixin:
             from .git_utils import get_git_branches
             from .widgets import CommandPalette
 
-            branches = get_git_branches(self.git_root)
+            branches = get_git_branches(self.git.root)
             if not branches:
                 self.notify("Failed to get branch list", severity="error")
                 return
 
-            current_branch = self.git_branch
+            current_branch = self.git.branch
             app = self
 
             # Create a provider for branch selection
@@ -805,7 +793,7 @@ class GitHandlersMixin:
             branch: Branch name to checkout
             is_remote: Whether this is a remote branch
         """
-        if not self.git_root:
+        if not self.git.root:
             self.notify("Not in a git repository", severity="error")
             return
 
@@ -813,9 +801,9 @@ class GitHandlersMixin:
             from .git_utils import git_checkout_branch, git_checkout_remote_branch
 
             if is_remote:
-                success, message = git_checkout_remote_branch(self.git_root, branch)
+                success, message = git_checkout_remote_branch(self.git.root, branch)
             else:
-                success, message = git_checkout_branch(self.git_root, branch)
+                success, message = git_checkout_branch(self.git.root, branch)
 
             if success:
                 self.notify(message, severity="information")

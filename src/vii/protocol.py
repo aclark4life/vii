@@ -10,6 +10,8 @@ from typing import Any, Protocol
 from textual.containers import ScrollableContainer
 from textual.widgets import DirectoryTree, Static
 
+from .git_state import GitState
+
 
 class ViiProtocol(Protocol):
     """Protocol defining the interface contract for the Vii application.
@@ -27,22 +29,8 @@ class ViiProtocol(Protocol):
         sidebar_search_matches: list[Any]
         sidebar_current_match_index: int
 
-        # Git state
-        git_branch: str | None
-        git_root: Path | None
-        git_log_page: int
-        git_log_page_size: int
-        git_log_output: str
-        git_log_entries: list[tuple[int, int]]
-        git_log_highlighted_entry: int
-        git_log_viewing: bool
-        git_commit_viewing: bool
-        git_commit_hash: str
-        git_blame_output: str
-        git_blame_viewing: bool
-        git_blame_highlighted_line: int
-        git_blame_file_path: Path | None
-        theme: str
+        # Git state (centralized in GitState object)
+        git: GitState
 
         # UI state
         focused: Any
@@ -50,6 +38,7 @@ class ViiProtocol(Protocol):
         _dir_listing_highlighted: int
         _content_highlighted_line: int
         _displayed_path: Path | None
+        theme: str
     """
 
     # Search state attributes
@@ -60,26 +49,11 @@ class ViiProtocol(Protocol):
     sidebar_search_query: str
     sidebar_search_matches: list[Any]
     sidebar_current_match_index: int
-    git_log_search_query: str
-    git_log_search_matches: list[int]
-    git_blame_search_query: str
-    git_blame_search_matches: list[int]
 
-    # Git state attributes
-    git_branch: str | None
-    git_root: Path | None
-    git_log_page: int
-    git_log_page_size: int
-    git_log_output: str
-    git_log_entries: list[tuple[int, int]]
-    git_log_highlighted_entry: int
-    git_log_viewing: bool
-    git_commit_viewing: bool
-    git_commit_hash: str
-    git_blame_output: str
-    git_blame_viewing: bool
-    git_blame_highlighted_line: int
-    git_blame_file_path: Path | None
+    # Git state (centralized)
+    git: GitState
+
+    # Theme
     theme: str
 
     # UI state attributes

@@ -487,31 +487,31 @@ class TestVii:
             scroll = app._get_scroll_container()
 
             # Simulate being in git commit viewing mode
-            app.git_log_viewing = True
-            app.git_commit_viewing = True
-            app.git_log_entries = [(0, 2), (3, 5), (6, 8)]
-            app.git_log_highlighted_entry = 1
+            app.git.log_viewing = True
+            app.git.commit_viewing = True
+            app.git.log_entries = [(0, 2), (3, 5), (6, 8)]
+            app.git.log_highlighted_entry = 1
 
             # Focus the content panel
             scroll.focus()
             await pilot.pause()
             assert scroll.has_focus
 
-            initial_entry = app.git_log_highlighted_entry
+            initial_entry = app.git.log_highlighted_entry
 
             # Press j - should scroll, not navigate log entries
             await pilot.press("j")
             await pilot.pause()
 
             # The highlighted entry should NOT have changed
-            assert app.git_log_highlighted_entry == initial_entry
+            assert app.git.log_highlighted_entry == initial_entry
 
             # Press k - should scroll, not navigate log entries
             await pilot.press("k")
             await pilot.pause()
 
             # The highlighted entry should still NOT have changed
-            assert app.git_log_highlighted_entry == initial_entry
+            assert app.git.log_highlighted_entry == initial_entry
 
     async def test_jk_scrolls_in_git_commit_view_integration(self):
         """Integration test: j/k scrolls when viewing commit details from git log."""
@@ -542,31 +542,31 @@ class TestVii:
             await pilot.pause()
 
             # Verify git info is initialized
-            assert app.git_branch is not None, "Should be in a git repository"
-            assert app.git_root is not None, "Git root should be set"
+            assert app.git.branch is not None, "Should be in a git repository"
+            assert app.git.root is not None, "Git root should be set"
 
             # Manually set up git commit viewing state
             # (The actual triggering mechanism via actions is flaky in tests)
-            app.git_log_viewing = True
-            app.git_commit_viewing = True
-            app.git_log_entries = [(0, 2), (3, 5), (6, 8)]  # Dummy entries
-            app.git_log_highlighted_entry = 1
+            app.git.log_viewing = True
+            app.git.commit_viewing = True
+            app.git.log_entries = [(0, 2), (3, 5), (6, 8)]  # Dummy entries
+            app.git.log_highlighted_entry = 1
             await pilot.pause()
 
-            initial_entry = app.git_log_highlighted_entry
+            initial_entry = app.git.log_highlighted_entry
 
             # Now j/k should scroll, not navigate log entries
             await pilot.press("j")
             await pilot.pause()
 
-            assert app.git_log_highlighted_entry == initial_entry, (
+            assert app.git.log_highlighted_entry == initial_entry, (
                 "j should scroll commit view, not navigate log entries"
             )
 
             await pilot.press("k")
             await pilot.pause()
 
-            assert app.git_log_highlighted_entry == initial_entry, (
+            assert app.git.log_highlighted_entry == initial_entry, (
                 "k should scroll commit view, not navigate log entries"
             )
 
@@ -574,8 +574,8 @@ class TestVii:
             await pilot.press("escape")
             await pilot.pause()
 
-            assert not app.git_commit_viewing, "Should be back to log view"
-            assert app.git_log_viewing, "Should still be viewing log"
+            assert not app.git.commit_viewing, "Should be back to log view"
+            assert app.git.log_viewing, "Should still be viewing log"
 
     async def test_get_blame_line_commit_hash(self, tmp_path):
         """Test extracting commit hash from blame line."""
@@ -585,27 +585,27 @@ class TestVii:
             await pilot.pause()
 
             # Test with normal commit hash
-            app.git_blame_output = "abc123de test.py (John Doe 2024-01-15  1) print('hello')"
-            app.git_blame_highlighted_line = 0
+            app.git.blame_output = "abc123de test.py (John Doe 2024-01-15  1) print('hello')"
+            app.git.blame_highlighted_line = 0
 
             commit_hash = app._get_blame_line_commit_hash()
             assert commit_hash == "abc123de"
 
             # Test with boundary commit (^ prefix)
-            app.git_blame_output = "^abc123de test.py (John Doe 2024-01-15  1) print('hello')"
-            app.git_blame_highlighted_line = 0
+            app.git.blame_output = "^abc123de test.py (John Doe 2024-01-15  1) print('hello')"
+            app.git.blame_highlighted_line = 0
 
             commit_hash = app._get_blame_line_commit_hash()
             assert commit_hash == "abc123de"
 
             # Test with no blame output
-            app.git_blame_output = ""
+            app.git.blame_output = ""
             commit_hash = app._get_blame_line_commit_hash()
             assert commit_hash is None
 
             # Test with invalid line number
-            app.git_blame_output = "abc123de test.py (John Doe 2024-01-15  1) print('hello')"
-            app.git_blame_highlighted_line = 10
+            app.git.blame_output = "abc123de test.py (John Doe 2024-01-15  1) print('hello')"
+            app.git.blame_highlighted_line = 10
             commit_hash = app._get_blame_line_commit_hash()
             assert commit_hash is None
 
