@@ -367,10 +367,11 @@ class Vii(KeyHandlersMixin, GitHandlersMixin, App):
                         ["which", cmd],
                         capture_output=True,
                         check=True,
+                        timeout=1,  # Quick check for executable
                     )
                     editor = cmd
                     break
-                except subprocess.CalledProcessError:
+                except (subprocess.CalledProcessError, subprocess.TimeoutExpired):
                     continue
 
         return [editor] if editor else ["open"]
