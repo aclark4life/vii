@@ -89,12 +89,18 @@ class GitHandlersMixin:
 
             current_dir = self._get_current_directory()
             skip = page * self.git.log_page_size
-            log_output = get_git_log(current_dir, max_count=self.git.log_page_size, skip=skip)
+            log_result = get_git_log(current_dir, max_count=self.git.log_page_size, skip=skip)
 
-            if log_output:
-                # Store log output and parse entries
-                self.git.log_output = log_output
-                self.git.log_entries = self._parse_git_log_entries(log_output)
+            if log_result:
+                machine_readable, pretty_output = log_result
+
+                # Store pretty output for display
+                self.git.log_output = pretty_output
+
+                # Parse machine-readable format into structured entries
+                self.git.log_entries = self._parse_git_log_entries(
+                    machine_readable, pretty_output
+                )
                 self.git.log_highlighted_entry = 0 if self.git.log_entries else -1
 
                 # Update state
@@ -118,46 +124,85 @@ class GitHandlersMixin:
         except Exception as e:
             self.notify(f"Git log failed: {e}", severity="error")
 
-    def _parse_git_log_entries(self, log_output: str) -> list[tuple[int, int]]:
-        """Parse git log output to identify entry boundaries.
+    def _parse_git_log_entries(
+        self, machine_readable: str, pretty_output: str
+    ) -> list["GitLogEntry"]:
+        """Parse git log using machine-readable format to create structured entries.
 
-        Each commit entry typically has:
-        - Line with hash, date, author (may have graph chars like * or |)
-        - Line(s) with commit message (indented)
-        - Empty line separator
+        This function parses the machine-readable format (with null-byte delimiters)
+        and maps it to line positions in the pretty output for highlighting.
+
+        Args:
+            machine_readable: Machine-readable format (hash\x00short\x00author\x00date\x00msg per line)
+            pretty_output: Pretty formatted output with graph and colors for display
 
         Returns:
-            List of (start_line, end_line) tuples for each commit entry
+            List of GitLogEntry objects with structured data
         """
-        lines = log_output.split("\n")
+        from .git_state import GitLogEntry
+
         entries = []
-        entry_start = None
+        pretty_lines = pretty_output.split("\n")
 
-        for i, line in enumerate(lines):
-            stripped = line.lstrip("*| ")
-            # Check if this line starts a new commit (has a short hash pattern)
-            # The format is: "* <hash> <date> <author>" or similar with graph chars
-            if stripped and not stripped.startswith(" ") and len(stripped) > 7:
-                # Check for typical hash pattern (7+ hex chars at start)
-                first_word = stripped.split()[0] if stripped.split() else ""
-                if len(first_word) >= 7 and all(
-                    c in "0123456789abcdef" for c in first_word.lower()
-                ):
-                    # This is a new commit entry
-                    if entry_start is not None:
-                        # End the previous entry (exclude trailing empty lines)
-                        end_line = i - 1
-                        while end_line > entry_start and not lines[end_line].strip():
+        # Parse machine-readable entries (one commit per line)
+        machine_lines = machine_readable.strip().split("\n")
+
+        # Each entry in pretty output takes 3 lines (header + message + blank)
+        # But we need to account for the graph characters
+
+        for idx, machine_line in enumerate(machine_lines):
+            # Split on null bytes
+            parts = machine_line.split("\x00")
+            if len(parts) >= 5:
+                full_hash, short_hash, author, date, message = parts[:5]
+
+                # Calculate line positions in pretty output
+                # Each commit has roughly 3 lines: graph+header, message, blank
+                # We need to find the actual line with the short hash
+                start_line = -1
+                for i, line in enumerate(pretty_lines):
+                    if short_hash in line:
+                        start_line = i
+                        break
+
+                if start_line >= 0:
+                    # Find end of this entry (next commit or end of output)
+                    end_line = start_line + 2  # Default: header + message + blank
+
+                    # Look for next commit or end
+                    for i in range(start_line + 1, len(pretty_lines)):
+                        # Check if this looks like a new commit line (has graph + hash)
+                        if i >= len(pretty_lines):
+                            break
+                        # If we find another hash from our list, that's the next entry
+                        if idx + 1 < len(machine_lines):
+                            next_parts = machine_lines[idx + 1].split("\x00")
+                            if len(next_parts) >= 2 and next_parts[1] in pretty_lines[i]:
+                                end_line = i - 1
+                                break
+                        # Also stop at empty separator before next entry
+                        if i > start_line + 1 and not pretty_lines[i].strip():
+                            if i + 1 < len(pretty_lines) and "*" in pretty_lines[i + 1]:
+                                end_line = i
+                                break
+
+                    # Use last line if this is the last entry
+                    if idx == len(machine_lines) - 1:
+                        end_line = len(pretty_lines) - 1
+                        # Trim trailing empty lines
+                        while end_line > start_line and not pretty_lines[end_line].strip():
                             end_line -= 1
-                        entries.append((entry_start, end_line))
-                    entry_start = i
 
-        # Don't forget the last entry
-        if entry_start is not None:
-            end_line = len(lines) - 1
-            while end_line > entry_start and not lines[end_line].strip():
-                end_line -= 1
-            entries.append((entry_start, end_line))
+                    entry = GitLogEntry(
+                        hash=full_hash,
+                        short_hash=short_hash,
+                        author=author,
+                        date=date,
+                        message=message,
+                        start_line=start_line,
+                        end_line=end_line,
+                    )
+                    entries.append(entry)
 
         return entries
 
@@ -180,7 +225,9 @@ class GitHandlersMixin:
         highlight_start = -1
         highlight_end = -1
         if 0 <= self.git.log_highlighted_entry < len(self.git.log_entries):
-            highlight_start, highlight_end = self.git.log_entries[self.git.log_highlighted_entry]
+            entry = self.git.log_entries[self.git.log_highlighted_entry]
+            highlight_start = entry.start_line
+            highlight_end = entry.end_line
 
         for i, line in enumerate(lines):
             if highlight_start <= i <= highlight_end:
@@ -214,13 +261,13 @@ class GitHandlersMixin:
         if self.git.log_highlighted_entry < 0 or not self.git.log_entries:
             return
 
-        entry_start, _ = self.git.log_entries[self.git.log_highlighted_entry]
+        entry = self.git.log_entries[self.git.log_highlighted_entry]
         scroll_container = self._get_scroll_container()
         if not scroll_container:
             return
 
         # Add 2 for the header lines (title + empty line)
-        target_y = entry_start + 2
+        target_y = entry.start_line + 2
 
         # Get visible region
         visible_top = scroll_container.scroll_y
@@ -237,26 +284,14 @@ class GitHandlersMixin:
         """Extract the commit hash from the currently highlighted log entry.
 
         Returns:
-            The commit hash string, or None if not found
+            The commit hash string (full hash), or None if not found
         """
         if self.git.log_highlighted_entry < 0 or not self.git.log_entries:
             return None
 
-        entry_start, _ = self.git.log_entries[self.git.log_highlighted_entry]
-        lines = self.git.log_output.split("\n")
-
-        if entry_start >= len(lines):
-            return None
-
-        line = lines[entry_start]
-        # Strip graph characters and find the hash
-        stripped = line.lstrip("*| ")
-        if stripped:
-            first_word = stripped.split()[0] if stripped.split() else ""
-            # Verify it looks like a hash (7+ hex chars)
-            if len(first_word) >= 7 and all(c in "0123456789abcdef" for c in first_word.lower()):
-                return first_word
-        return None
+        # Now we can get the hash directly from the structured entry!
+        entry = self.git.log_entries[self.git.log_highlighted_entry]
+        return entry.hash
 
     def _show_git_commit(self) -> None:
         """Show the detailed view of the highlighted commit."""

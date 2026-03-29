@@ -1594,15 +1594,28 @@ class Vii(KeyHandlersMixin, GitHandlersMixin, App):
         self.git.log_search_query = query
         self.git.log_search_matches = []
 
-        # Search through git log entries
+        # Search through git log entries (using structured data and display output)
         lines = self.git.log_output.split("\n")
-        for entry_idx, (start_line, end_line) in enumerate(self.git.log_entries):
-            # Check if any line in this entry matches the query
-            for line_idx in range(start_line, end_line + 1):
+        for entry_idx, entry in enumerate(self.git.log_entries):
+            # Search in both the structured fields and display lines
+            query_lower = query.lower()
+
+            # Check structured fields first (faster)
+            if (
+                query_lower in entry.hash.lower()
+                or query_lower in entry.short_hash.lower()
+                or query_lower in entry.author.lower()
+                or query_lower in entry.message.lower()
+            ):
+                self.git.log_search_matches.append(entry_idx)
+                continue
+
+            # Also check display lines for complete match
+            for line_idx in range(entry.start_line, entry.end_line + 1):
                 if line_idx < len(lines):
-                    if query.lower() in lines[line_idx].lower():
+                    if query_lower in lines[line_idx].lower():
                         self.git.log_search_matches.append(entry_idx)
-                        break  # Found match in this entry, move to next entry
+                        break
 
         if not self.git.log_search_matches:
             self.notify(f"Pattern not found: {query}", severity="warning")

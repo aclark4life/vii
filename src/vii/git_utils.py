@@ -428,8 +428,12 @@ def git_checkout_remote_branch(path: Path, remote_branch: str) -> tuple[bool, st
         return (False, "Git command not found")
 
 
-def get_git_log(path: Path, max_count: int = 50, skip: int = 0) -> str | None:
-    """Get git log with formatted output.
+def get_git_log(path: Path, max_count: int = 50, skip: int = 0) -> tuple[str, str] | None:
+    """Get git log with both machine-readable and pretty formatted output.
+
+    This function fetches the log twice to avoid brittle parsing:
+    1. Machine-readable format for parsing (with delimiters)
+    2. Pretty format with colors and graph for display
 
     Args:
         path: Path inside a git repository
@@ -437,7 +441,7 @@ def get_git_log(path: Path, max_count: int = 50, skip: int = 0) -> str | None:
         skip: Number of commits to skip (for pagination)
 
     Returns:
-        Formatted git log output as string, or None if error
+        Tuple of (machine_readable, pretty_output) or None if error
     """
     try:
         # Get git root to ensure we're running from the repository root
@@ -445,16 +449,17 @@ def get_git_log(path: Path, max_count: int = 50, skip: int = 0) -> str | None:
         if not git_root:
             return None
 
-        # Use a nice format with colors and graph
-        format_str = "%C(yellow)%h%Creset %C(cyan)%ad%Creset %C(green)%an%Creset%n  %s%n"
-        result = subprocess.run(
+        # First, get machine-readable format with pipe delimiter
+        # Format: hash|short_hash|author|date|message
+        # Use %x00 (null byte) as delimiter to handle pipes in messages
+        machine_format = "%H%x00%h%x00%an%x00%ad%x00%s"
+        machine_result = subprocess.run(
             [
                 "git",
                 "log",
                 f"--max-count={max_count}",
                 f"--skip={skip}",
-                "--graph",
-                f"--pretty=format:{format_str}",
+                f"--pretty=format:{machine_format}",
                 "--date=relative",
             ],
             cwd=str(git_root),
@@ -463,7 +468,29 @@ def get_git_log(path: Path, max_count: int = 50, skip: int = 0) -> str | None:
             timeout=5,
             text=True,
         )
-        return result.stdout if result.stdout else None
+
+        # Then, get pretty format with colors and graph for display
+        pretty_format = "%C(yellow)%h%Creset %C(cyan)%ad%Creset %C(green)%an%Creset%n  %s%n"
+        pretty_result = subprocess.run(
+            [
+                "git",
+                "log",
+                f"--max-count={max_count}",
+                f"--skip={skip}",
+                "--graph",
+                f"--pretty=format:{pretty_format}",
+                "--date=relative",
+            ],
+            cwd=str(git_root),
+            capture_output=True,
+            check=True,
+            timeout=5,
+            text=True,
+        )
+
+        if machine_result.stdout and pretty_result.stdout:
+            return (machine_result.stdout, pretty_result.stdout)
+        return None
     except (subprocess.CalledProcessError, subprocess.TimeoutExpired, FileNotFoundError):
         return None
 

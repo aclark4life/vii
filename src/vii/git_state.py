@@ -6,6 +6,23 @@ all git-related state, making it easier to manage and reason about.
 
 from dataclasses import dataclass, field
 from pathlib import Path
+from typing import NamedTuple
+
+
+class GitLogEntry(NamedTuple):
+    """Represents a single git log entry with structured data.
+
+    This structure uses machine-readable data from git log
+    to avoid brittle parsing of formatted output.
+    """
+
+    hash: str  # Full commit hash
+    short_hash: str  # Abbreviated hash (7 chars)
+    author: str  # Author name
+    date: str  # Date string
+    message: str  # Commit message (first line)
+    start_line: int  # Start line in display output
+    end_line: int  # End line in display output
 
 
 @dataclass
@@ -24,8 +41,8 @@ class GitState:
 
     # Log state
     log_viewing: bool = False
-    log_output: str = ""
-    log_entries: list[tuple[int, int]] = field(default_factory=list)
+    log_output: str = ""  # Pretty formatted display output
+    log_entries: list[GitLogEntry] = field(default_factory=list)  # Structured entry data
     log_highlighted_entry: int = -1
     log_page: int = 0
     log_page_size: int = 50
