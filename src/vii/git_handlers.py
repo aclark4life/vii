@@ -12,6 +12,7 @@ from textual.command import Hits
 from textual.containers import ScrollableContainer
 from textual.widgets import DirectoryTree, Static
 
+from vii.constants import TIMEOUT_INTERACTIVE, TIMEOUT_MEDIUM, TIMEOUT_NETWORK
 from vii.content import get_syntax_lexer, get_syntax_theme
 from vii.git_state import GitState
 
@@ -59,7 +60,7 @@ class GitHandlersMixin:
                 cwd=str(self.git.root),
                 capture_output=True,
                 text=True,
-                timeout=5,
+                timeout=TIMEOUT_MEDIUM,
             )
             if result.stdout:
                 self.notify(f"Git status:\n{result.stdout}")
@@ -366,7 +367,7 @@ class GitHandlersMixin:
                 ["git", "add", str(rel_path)],
                 cwd=str(self.git.root),
                 check=True,
-                timeout=5,
+                timeout=TIMEOUT_MEDIUM,
             )
             self.notify(f"Added {path.name} to git")
             self._git_refresh()
@@ -402,7 +403,7 @@ class GitHandlersMixin:
             subprocess.run(
                 ["git", "commit"],
                 cwd=str(self.git.root),
-                timeout=300,  # 5 minutes for commit message
+                timeout=TIMEOUT_INTERACTIVE,  # 5 minutes for commit message
             )
             self._git_refresh()
         except Exception as e:
@@ -421,7 +422,7 @@ class GitHandlersMixin:
                 cwd=str(self.git.root),
                 capture_output=True,
                 text=True,
-                timeout=60,
+                timeout=TIMEOUT_NETWORK,
             )
             if result.returncode == 0:
                 self.notify("Pushed successfully")
@@ -443,7 +444,7 @@ class GitHandlersMixin:
                 cwd=str(self.git.root),
                 capture_output=True,
                 text=True,
-                timeout=60,
+                timeout=TIMEOUT_NETWORK,
             )
             if result.returncode == 0:
                 self.notify("Pulled successfully")

@@ -21,6 +21,7 @@ from textual.worker import Worker, WorkerState
 
 from vii.commands import ConfigCommandProvider, GitCommandProvider
 from vii.config import Config
+from vii.constants import RENDERED_CACHE_MAX_SIZE, TIMEOUT_QUICK
 from vii.content import (
     get_syntax_lexer,
     get_syntax_theme,
@@ -190,10 +191,10 @@ class Vii(KeyHandlersMixin, GitHandlersMixin, App):
         self.git = GitState()
         # Content update debounce timer
         self._content_update_timer = None
-        # Cache for rendered file content (LRU with OrderedDict, max 30 files)
+        # Cache for rendered file content (LRU with OrderedDict)
         # OrderedDict provides O(1) move_to_end() for efficient LRU implementation
         self._rendered_cache: OrderedDict[Path, tuple[str, object]] = OrderedDict()
-        self._cache_max_size = 30
+        self._cache_max_size = RENDERED_CACHE_MAX_SIZE
         # Track currently displayed path to avoid redundant updates
         self._displayed_path: Path | None = None
         # Track directory listing entries for click handling (list of paths in display order)
@@ -367,7 +368,7 @@ class Vii(KeyHandlersMixin, GitHandlersMixin, App):
                         ["which", cmd],
                         capture_output=True,
                         check=True,
-                        timeout=1,  # Quick check for executable
+                        timeout=TIMEOUT_QUICK,
                     )
                     editor = cmd
                     break

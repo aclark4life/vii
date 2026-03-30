@@ -8,6 +8,8 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import NamedTuple
 
+from .constants import GIT_LOG_PAGE_SIZE
+
 
 class GitLogEntry(NamedTuple):
     """Represents a single git log entry with structured data.
@@ -45,7 +47,7 @@ class GitState:
     log_entries: list[GitLogEntry] = field(default_factory=list)  # Structured entry data
     log_highlighted_entry: int = -1
     log_page: int = 0
-    log_page_size: int = 50
+    log_page_size: int = GIT_LOG_PAGE_SIZE
     log_search_query: str = ""
     log_search_matches: list[int] = field(default_factory=list)
     log_current_match_index: int = -1

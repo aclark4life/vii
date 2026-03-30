@@ -4,6 +4,8 @@ from __future__ import annotations
 
 from pathlib import Path
 
+from .constants import FILE_MAX_LINES, FILE_MAX_SIZE
+
 # Common image file extensions
 IMAGE_EXTENSIONS = {
     ".png",
@@ -58,7 +60,7 @@ def render_image_preview(path: Path, size: int = 30) -> tuple[str, None] | tuple
         return None, f"Error: {e}"
 
 
-def read_file_content(path: Path, max_size: int = 100000, max_lines: int = 2000) -> str:
+def read_file_content(path: Path, max_size: int = FILE_MAX_SIZE, max_lines: int = FILE_MAX_LINES) -> str:
     """Read file content, handling binary files and size limits.
 
     Args:

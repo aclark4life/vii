@@ -4,6 +4,16 @@ import subprocess
 from functools import lru_cache
 from pathlib import Path
 
+from .constants import (
+    GIT_LOG_PAGE_SIZE,
+    TIMEOUT_INTERACTIVE,
+    TIMEOUT_LONG,
+    TIMEOUT_MEDIUM,
+    TIMEOUT_NETWORK,
+    TIMEOUT_QUICK,
+    TIMEOUT_STANDARD,
+)
+
 
 def clear_git_cache() -> None:
     """Clear all git-related caches.
@@ -34,7 +44,7 @@ def get_git_root(path: Path) -> Path | None:
             cwd=str(path),
             capture_output=True,
             check=True,
-            timeout=1,
+            timeout=TIMEOUT_QUICK,
             text=True,
         )
         return Path(result.stdout.strip())
@@ -91,7 +101,7 @@ def get_git_branch(path: Path) -> str | None:
             cwd=str(git_root),
             capture_output=True,
             check=True,
-            timeout=1,
+            timeout=TIMEOUT_QUICK,
             text=True,
         )
         branch = result.stdout.strip()
@@ -212,7 +222,7 @@ def get_git_diff(path: Path, file_path: str) -> str | None:
             cwd=str(path),
             capture_output=True,
             check=True,
-            timeout=3,
+            timeout=TIMEOUT_MEDIUM,
             text=True,
         )
         return result.stdout if result.stdout else None
@@ -294,7 +304,7 @@ def get_git_blame_file(path: Path, file_path: str) -> str | None:
             cwd=str(path),
             capture_output=True,
             check=True,
-            timeout=5,
+            timeout=TIMEOUT_MEDIUM,
             text=True,
         )
         return result.stdout if result.stdout else None
@@ -323,7 +333,7 @@ def get_git_branches(path: Path) -> dict[str, list[str]] | None:
             cwd=str(git_root),
             capture_output=True,
             check=True,
-            timeout=3,
+            timeout=TIMEOUT_MEDIUM,
             text=True,
         )
         local_branches = [b.strip() for b in result.stdout.strip().split("\n") if b.strip()]
@@ -334,7 +344,7 @@ def get_git_branches(path: Path) -> dict[str, list[str]] | None:
             cwd=str(git_root),
             capture_output=True,
             check=True,
-            timeout=3,
+            timeout=TIMEOUT_MEDIUM,
             text=True,
         )
         remote_branches = [
@@ -372,7 +382,7 @@ def git_checkout_branch(path: Path, branch_name: str) -> tuple[bool, str]:
             cwd=str(git_root),
             capture_output=True,
             check=True,
-            timeout=5,
+            timeout=TIMEOUT_MEDIUM,
             text=True,
         )
         return (True, f"Switched to branch '{branch_name}'")
@@ -413,7 +423,7 @@ def git_checkout_remote_branch(path: Path, remote_branch: str) -> tuple[bool, st
             cwd=str(git_root),
             capture_output=True,
             check=True,
-            timeout=5,
+            timeout=TIMEOUT_MEDIUM,
             text=True,
         )
         return (True, f"Created and switched to branch '{local_branch}' tracking '{remote_branch}'")
@@ -428,7 +438,7 @@ def git_checkout_remote_branch(path: Path, remote_branch: str) -> tuple[bool, st
         return (False, "Git command not found")
 
 
-def get_git_log(path: Path, max_count: int = 50, skip: int = 0) -> tuple[str, str] | None:
+def get_git_log(path: Path, max_count: int = GIT_LOG_PAGE_SIZE, skip: int = 0) -> tuple[str, str] | None:
     """Get git log with both machine-readable and pretty formatted output.
 
     This function fetches the log twice to avoid brittle parsing:
@@ -465,7 +475,7 @@ def get_git_log(path: Path, max_count: int = 50, skip: int = 0) -> tuple[str, st
             cwd=str(git_root),
             capture_output=True,
             check=True,
-            timeout=5,
+            timeout=TIMEOUT_MEDIUM,
             text=True,
         )
 
@@ -484,7 +494,7 @@ def get_git_log(path: Path, max_count: int = 50, skip: int = 0) -> tuple[str, st
             cwd=str(git_root),
             capture_output=True,
             check=True,
-            timeout=5,
+            timeout=TIMEOUT_MEDIUM,
             text=True,
         )
 
@@ -515,7 +525,7 @@ def get_git_show(path: Path, commit_hash: str) -> str | None:
             cwd=str(git_root),
             capture_output=True,
             check=True,
-            timeout=10,
+            timeout=TIMEOUT_LONG,
             text=True,
         )
         return result.stdout if result.stdout else None
