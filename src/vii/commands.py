@@ -120,7 +120,7 @@ class GitCommandProvider(Provider):
         assert isinstance(app, Vii)
 
         # Only show git menu if in a git repository
-        if not app.git_branch:
+        if not app.git.branch:
             return
 
         from textual.command import DiscoveryHit
@@ -129,7 +129,7 @@ class GitCommandProvider(Provider):
         yield DiscoveryHit(
             "Git",
             self._show_git_commands,
-            help=f"Git commands for branch: {app.git_branch}",
+            help=f"Git commands for branch: {app.git.branch}",
         )
 
     async def _show_git_commands(self) -> None:
@@ -180,7 +180,7 @@ class GitCommandProvider(Provider):
         assert isinstance(app, Vii)
 
         # Only show git menu if in a git repository
-        if not app.git_branch:
+        if not app.git.branch:
             return
 
         # Match against "Git"
@@ -190,5 +190,5 @@ class GitCommandProvider(Provider):
                 score,
                 matcher.highlight("Git"),
                 self._show_git_commands,
-                help=f"Git commands for branch: {app.git_branch}",
+                help=f"Git commands for branch: {app.git.branch}",
             )
