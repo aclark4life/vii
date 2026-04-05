@@ -6,15 +6,15 @@ from pathlib import Path
 from typing import TYPE_CHECKING, ClassVar
 
 from rich.text import Text
-from textual import events, on
+from textual import events
 from textual.binding import Binding, BindingType
 from textual.command import CommandPalette as TextualCommandPalette
 from textual.reactive import reactive
 from textual.widget import Widget
-from textual.widgets import Button, DirectoryTree, Input, OptionList
+from textual.widgets import Button, DirectoryTree
 
 if TYPE_CHECKING:
-    pass
+    from textual.app import ComposeResult
 
 
 # Import CommandInput from textual.command so we can use it in compose
@@ -37,11 +37,17 @@ class CommandPalette(TextualCommandPalette):
             "Go to top",
             show=False,
         ),
-        Binding("down,j", "cursor_down", "Next command", show=False),
+        Binding("down,tab", "cursor_down", "Next command", show=False, priority=True),
         Binding("escape", "escape", "Exit the command palette"),
         Binding("pagedown", "command_list('page_down')", "Next page", show=False),
         Binding("pageup", "command_list('page_up')", "Previous page", show=False),
-        Binding("up,k", "command_list('cursor_up')", "Previous command", show=False),
+        Binding(
+            "up,shift+tab",
+            "command_list('cursor_up')",
+            "Previous command",
+            show=False,
+            priority=True,
+        ),
         Binding("enter", "select_or_submit", "Select/Submit", show=False, priority=True),
     ]
     """Extended bindings that add j/k navigation and enter handling."""
@@ -77,16 +83,15 @@ class CommandPalette(TextualCommandPalette):
             # List not visible, trigger the normal submit behavior
             # Simulate an Input.Submitted event
             from textual.widgets import Input
+
             input_widget = self.query_one(Input)
             self.post_message(Input.Submitted(input_widget, input_widget.value))
 
-    def compose(self) -> "ComposeResult":
+    def compose(self) -> ComposeResult:
         """Compose the command palette with our custom input."""
-        from textual.app import ComposeResult
         from textual.command import CommandList, SearchIcon
         from textual.containers import Horizontal, Vertical
         from textual.widgets import LoadingIndicator
-
 
         with Vertical(id="--container"):
             with Horizontal(id="--input"):
