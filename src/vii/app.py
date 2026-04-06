@@ -6,6 +6,7 @@ import subprocess
 import sys
 from collections import OrderedDict
 from pathlib import Path
+from typing import Literal
 
 from rich.console import Group
 from rich.style import Style
@@ -16,6 +17,7 @@ from textual.app import App, ComposeResult
 from textual.binding import Binding
 from textual.containers import Horizontal, ScrollableContainer, Vertical
 from textual.reactive import reactive
+from textual.timer import Timer
 from textual.widgets import DirectoryTree, Footer, Header, Input, Static
 from textual.worker import Worker, WorkerState
 
@@ -39,7 +41,6 @@ from vii.git_utils import (
     is_git_repo,
 )
 from vii.key_handlers import KeyHandlersMixin
-from vii.protocol import ViiProtocol
 from vii.tree_sitter_highlight import get_language_for_file, highlight_with_tree_sitter
 from vii.widgets import CommandPalette, GitDirectoryTree, VerticalSplitter
 
@@ -190,7 +191,7 @@ class Vii(KeyHandlersMixin, GitHandlersMixin, App):
         # Git state (centralized)
         self.git = GitState()
         # Content update debounce timer
-        self._content_update_timer = None
+        self._content_update_timer: Timer | None = None
         # Cache for rendered file content (LRU with OrderedDict)
         # OrderedDict provides O(1) move_to_end() for efficient LRU implementation
         self._rendered_cache: OrderedDict[Path, tuple[str, object]] = OrderedDict()
@@ -214,8 +215,9 @@ class Vii(KeyHandlersMixin, GitHandlersMixin, App):
         message: str,
         *,
         title: str = "",
-        severity: str = "information",
+        severity: Literal["information", "warning", "error"] = "information",
         timeout: float | None = None,
+        markup: bool = True,
     ) -> None:
         """Show a notification, limiting to 3 visible at a time.
 
@@ -229,8 +231,11 @@ class Vii(KeyHandlersMixin, GitHandlersMixin, App):
             oldest = toasts.pop(0)
             oldest.remove()
 
-        # Call parent notify
-        super().notify(message, title=title, severity=severity, timeout=timeout)
+        # Call parent notify, using default timeout if None provided
+        kwargs: dict = {"title": title, "severity": severity, "markup": markup}
+        if timeout is not None:
+            kwargs["timeout"] = timeout
+        super().notify(message, **kwargs)
 
     def set_sidebar_width(self, width: int, save: bool = True) -> None:
         """Set the sidebar width, with bounds checking.
@@ -320,7 +325,55 @@ class Vii(KeyHandlersMixin, GitHandlersMixin, App):
         # Fallback: use walk_children (works in Textual 8.x)
         try:
             for widget in self.walk_children():
-                if widget.id == "content-scroll":
+                if widget.id == "content-scroll" and isinstance(widget, ScrollableContainer):
+                    return widget
+        except Exception:
+            pass
+        return None
+
+    def _get_sidebar(self):
+        """Get the sidebar widget."""
+        try:
+            result = self.query_one("#sidebar")
+            if result is not None:
+                return result
+        except Exception:
+            pass
+        try:
+            for widget in self.walk_children():
+                if widget.id == "sidebar":
+                    return widget
+        except Exception:
+            pass
+        return None
+
+    def _get_main_content(self):
+        """Get the main-content widget."""
+        try:
+            result = self.query_one("#main-content")
+            if result is not None:
+                return result
+        except Exception:
+            pass
+        try:
+            for widget in self.walk_children():
+                if widget.id == "main-content":
+                    return widget
+        except Exception:
+            pass
+        return None
+
+    def _get_splitter(self):
+        """Get the splitter widget."""
+        try:
+            result = self.query_one("#splitter")
+            if result is not None:
+                return result
+        except Exception:
+            pass
+        try:
+            for widget in self.walk_children():
+                if widget.id == "splitter":
                     return widget
         except Exception:
             pass
@@ -345,7 +398,7 @@ class Vii(KeyHandlersMixin, GitHandlersMixin, App):
         # Fallback: use walk_children (works in Textual 8.x)
         try:
             for widget in self.walk_children():
-                if widget.id == "content-display":
+                if widget.id == "content-display" and isinstance(widget, Static):
                     return widget
         except Exception:
             pass
@@ -810,8 +863,6 @@ class Vii(KeyHandlersMixin, GitHandlersMixin, App):
             # Summary of hidden files
             if hidden:
                 text.append(f"\n({len(hidden)} hidden items)", style="dim")
-
-
 
         except PermissionError:
             text.append("(permission denied)", style="red")
@@ -1590,7 +1641,10 @@ class Vii(KeyHandlersMixin, GitHandlersMixin, App):
         """Search for commits in git log matching the query."""
         self.notify(f"DEBUG: _perform_git_log_search called with query='{query}'")
         if not query or not self.git.log_output:
-            self.notify(f"DEBUG: Early return - query={bool(query)}, git_log_output={bool(self.git.log_output)}")
+            self.notify(
+                f"DEBUG: Early return - query={bool(query)},"
+                f" git_log_output={bool(self.git.log_output)}"
+            )
             return
 
         self.git.log_search_query = query
@@ -1636,9 +1690,9 @@ class Vii(KeyHandlersMixin, GitHandlersMixin, App):
             self.notify("No matches to navigate", severity="warning")
             return
 
-        self.git.log_current_match_index = (
-            self.git.log_current_match_index + 1
-        ) % len(self.git.log_search_matches)
+        self.git.log_current_match_index = (self.git.log_current_match_index + 1) % len(
+            self.git.log_search_matches
+        )
         self.git.log_highlighted_entry = self.git.log_search_matches[
             self.git.log_current_match_index
         ]
@@ -1654,9 +1708,9 @@ class Vii(KeyHandlersMixin, GitHandlersMixin, App):
             self.notify("No matches to navigate", severity="warning")
             return
 
-        self.git.log_current_match_index = (
-            self.git.log_current_match_index - 1
-        ) % len(self.git.log_search_matches)
+        self.git.log_current_match_index = (self.git.log_current_match_index - 1) % len(
+            self.git.log_search_matches
+        )
         self.git.log_highlighted_entry = self.git.log_search_matches[
             self.git.log_current_match_index
         ]
@@ -1697,9 +1751,9 @@ class Vii(KeyHandlersMixin, GitHandlersMixin, App):
             self.notify("No matches to navigate", severity="warning")
             return
 
-        self.git.blame_current_match_index = (
-            self.git.blame_current_match_index + 1
-        ) % len(self.git.blame_search_matches)
+        self.git.blame_current_match_index = (self.git.blame_current_match_index + 1) % len(
+            self.git.blame_search_matches
+        )
         self.git.blame_highlighted_line = self.git.blame_search_matches[
             self.git.blame_current_match_index
         ]
@@ -1715,9 +1769,9 @@ class Vii(KeyHandlersMixin, GitHandlersMixin, App):
             self.notify("No matches to navigate", severity="warning")
             return
 
-        self.git.blame_current_match_index = (
-            self.git.blame_current_match_index - 1
-        ) % len(self.git.blame_search_matches)
+        self.git.blame_current_match_index = (self.git.blame_current_match_index - 1) % len(
+            self.git.blame_search_matches
+        )
         self.git.blame_highlighted_line = self.git.blame_search_matches[
             self.git.blame_current_match_index
         ]
@@ -1799,8 +1853,8 @@ class Vii(KeyHandlersMixin, GitHandlersMixin, App):
                 relative_y = event.screen_y - container_region.y - 2 + scroll_y - 2
 
                 # Find which entry contains this line
-                for i, (start_line, end_line) in enumerate(self.git.log_entries):
-                    if start_line <= relative_y <= end_line:
+                for i, entry in enumerate(self.git.log_entries):
+                    if entry.start_line <= relative_y <= entry.end_line:
                         self.git.log_highlighted_entry = i
                         self._render_log_with_highlight()
                         # Double-click opens the commit details
@@ -1944,11 +1998,11 @@ class Vii(KeyHandlersMixin, GitHandlersMixin, App):
 
     def action_toggle_maximize(self) -> None:
         """Toggle maximizing the focused panel (hide the other panel)."""
-        try:
-            sidebar = self.query_one("#sidebar")
-            main_content = self.query_one("#main-content")
-            splitter = self.query_one("#splitter")
-        except Exception:
+        sidebar = self._get_sidebar()
+        main_content = self._get_main_content()
+        splitter = self._get_splitter()
+
+        if not sidebar or not main_content or not splitter:
             return
 
         tree = self._get_tree()
@@ -2204,7 +2258,7 @@ class Vii(KeyHandlersMixin, GitHandlersMixin, App):
                     # Reload the tree to reflect the deletion
                     app._reload_tree()
                     # Refresh git status if in a git repo
-                    if app.git_branch:
+                    if app.git.branch:
                         app._git_refresh()
                 except Exception as e:
                     app.notify(f"Error deleting file: {e}", severity="error")

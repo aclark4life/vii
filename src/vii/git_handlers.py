@@ -18,9 +18,8 @@ from vii.git_state import GitState
 
 if TYPE_CHECKING:
     # Import for documentation - the protocol defines the contract
-    from textual.screen import Screen
 
-    from vii.protocol import ViiProtocol
+    from vii.git_state import GitLogEntry
 
 
 class GitHandlersMixin:
@@ -46,6 +45,7 @@ class GitHandlersMixin:
     def _get_tree(self) -> DirectoryTree | None: ...
     def _get_scroll_container(self) -> ScrollableContainer | None: ...
     def _get_content_display(self) -> Static | None: ...
+    def push_screen(self, *args: Any, **kwargs: Any) -> Any: ...
 
     def _git_status(self) -> None:
         """Show git status."""
@@ -98,9 +98,7 @@ class GitHandlersMixin:
                 self.git.log_output = pretty_output
 
                 # Parse machine-readable format into structured entries
-                self.git.log_entries = self._parse_git_log_entries(
-                    machine_readable, pretty_output
-                )
+                self.git.log_entries = self._parse_git_log_entries(machine_readable, pretty_output)
                 self.git.log_highlighted_entry = 0 if self.git.log_entries else -1
 
                 # Update state
@@ -133,7 +131,8 @@ class GitHandlersMixin:
         and maps it to line positions in the pretty output for highlighting.
 
         Args:
-            machine_readable: Machine-readable format (hash\x00short\x00author\x00date\x00msg per line)
+            machine_readable: Machine-readable format
+                (hash\\x00short\\x00author\\x00date\\x00msg per line)
             pretty_output: Pretty formatted output with graph and colors for display
 
         Returns:
