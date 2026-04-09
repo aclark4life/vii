@@ -27,6 +27,11 @@ class GitHandlersMixin:
 
     This mixin requires the host class to implement ViiProtocol.
     The type stubs below ensure type safety - they match the protocol definition.
+
+    WARNING: Do NOT stub Textual framework methods (push_screen, focus, etc.) here.
+    Stub methods are real Python methods that shadow App's implementations in the MRO,
+    silently breaking features. Use  # type: ignore[attr-defined] at the call site instead.
+    See commit bcd9776 for the original incident with push_screen.
     """
 
     # Attributes from ViiProtocol (provided by host class)
@@ -45,8 +50,6 @@ class GitHandlersMixin:
     def _get_tree(self) -> DirectoryTree | None: ...
     def _get_scroll_container(self) -> ScrollableContainer | None: ...
     def _get_content_display(self) -> Static | None: ...
-    def push_screen(self, *args: Any, **kwargs: Any) -> Any: ...
-
     def _git_status(self) -> None:
         """Show git status."""
         if not self.git.branch or not self.git.root:
@@ -815,7 +818,9 @@ class GitHandlersMixin:
                                 )
 
             # Show branch selection palette
-            self.push_screen(CommandPalette(providers=[BranchProvider]))
+            # NOTE: Do NOT add push_screen as a stub on this mixin — it would shadow
+            # App.push_screen in the MRO and silently swallow the call (see bcd9776).
+            self.push_screen(CommandPalette(providers=[BranchProvider]))  # type: ignore[attr-defined]
 
         except Exception as e:
             self.notify(f"Failed to show branches: {e}", severity="error")
