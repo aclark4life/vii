@@ -36,14 +36,14 @@ class KeyHandlersMixin:
     sidebar_current_match_index: int
 
     # Methods from ViiProtocol (provided by host class)
+    # NOTE: Only stub methods defined in Vii (app.py) here. Do NOT stub methods
+    # from GitHandlersMixin or Textual framework methods — stubs are real Python
+    # methods that shadow implementations later in the MRO (KeyHandlersMixin comes
+    # before GitHandlersMixin and App). See commit bcd9776 / fa2be3a.
     def _get_tree(self) -> DirectoryTree | None: ...
     def _get_scroll_container(self) -> ScrollableContainer | None: ...
     def _get_content_display(self) -> Static | None: ...
     def _schedule_content_update(self) -> None: ...
-    def _render_log_with_highlight(self) -> None: ...
-    def _scroll_to_log_entry(self) -> None: ...
-    def _render_blame_with_highlight(self) -> None: ...
-    def _scroll_to_blame_line(self) -> None: ...
     def _render_dir_listing_with_highlight(self) -> None: ...
     def _scroll_to_dir_entry(self) -> None: ...
     def _render_file_content_with_highlight(self) -> None: ...
@@ -60,12 +60,7 @@ class KeyHandlersMixin:
     def _update_content_display(self) -> None: ...
     def _do_content_update(self) -> None: ...
     def _navigate_to_path(self, path: Path) -> None: ...
-    def _show_git_commit(self) -> None: ...
-    def _show_blame_commit(self) -> None: ...
-    def _git_log(self, page: int = 0) -> None: ...
     def action_git_log(self) -> None: ...
-    # Using Any for Textual framework methods to avoid signature conflicts
-    def call_after_refresh(self, *args: Any, **kwargs: Any) -> Any: ...
     def notify(self, *args: Any, **kwargs: Any) -> None: ...
     def _show_sidebar_search(self) -> None: ...
     def _hide_sidebar_search(self) -> None: ...
@@ -135,7 +130,7 @@ class KeyHandlersMixin:
             else:
                 # Arrow keys are handled by the tree widget, but we still need to update display
                 # Use call_after_refresh to ensure the tree has processed the key first
-                self.call_after_refresh(self._schedule_content_update)
+                self.call_after_refresh(self._schedule_content_update)  # type: ignore[attr-defined]
         elif event.key in ("ctrl+f", "ctrl+d"):
             # Page down (vim-style)
             event.prevent_default()
@@ -212,7 +207,7 @@ class KeyHandlersMixin:
                 self._goto_next_git_blame_match()
             # Check if viewing git log (without search) - navigate pages
             elif self.git.log_viewing:
-                self._git_log(getattr(self, "git_log_page", 0) + 1)
+                self._git_log(getattr(self, "git_log_page", 0) + 1)  # type: ignore[attr-defined]
             else:
                 # Next search match in file
                 self._goto_next_match()
@@ -234,7 +229,7 @@ class KeyHandlersMixin:
             git_log_page = getattr(self, "git_log_page", 0)
             if self.git.log_viewing and git_log_page > 0:
                 # Previous page of git log
-                self._git_log(git_log_page - 1)
+                self._git_log(git_log_page - 1)  # type: ignore[attr-defined]
         elif content_focused and event.key == "escape":
             self._handle_escape_key(event, tree, scroll_container)
         elif content_focused and event.key == "H":
@@ -251,10 +246,10 @@ class KeyHandlersMixin:
             event.prevent_default()
             if self.git.log_viewing and not self.git.commit_viewing:
                 # Show the highlighted commit details
-                self._show_git_commit()
+                self._show_git_commit()  # type: ignore[attr-defined]
             elif self.git.blame_viewing and not self.git.commit_viewing:
                 # Show the commit for the highlighted blame line
-                self._show_blame_commit()
+                self._show_blame_commit()  # type: ignore[attr-defined]
             elif self._dir_listing_entries and 0 <= self._dir_listing_highlighted < len(
                 self._dir_listing_entries
             ):
@@ -311,16 +306,16 @@ class KeyHandlersMixin:
                 # Move highlighted entry down in log view
                 if self.git.log_highlighted_entry < len(self.git.log_entries) - 1:
                     self.git.log_highlighted_entry += 1
-                    self._render_log_with_highlight()
-                    self._scroll_to_log_entry()
+                    self._render_log_with_highlight()  # type: ignore[attr-defined]
+                    self._scroll_to_log_entry()  # type: ignore[attr-defined]
             elif self.git.blame_viewing and self.git.blame_output:
                 # Move highlighted line down in blame view
                 lines = self.git.blame_output.split("\n")
                 max_line = len(lines) - 1
                 if self.git.blame_highlighted_line < max_line:
                     self.git.blame_highlighted_line += 1
-                    self._render_blame_with_highlight()
-                    self._scroll_to_blame_line()
+                    self._render_blame_with_highlight()  # type: ignore[attr-defined]
+                    self._scroll_to_blame_line()  # type: ignore[attr-defined]
             elif self._dir_listing_entries:
                 # Move highlighted entry down in directory listing
                 if self._dir_listing_highlighted < len(self._dir_listing_entries) - 1:
@@ -345,14 +340,14 @@ class KeyHandlersMixin:
                 # Move highlighted entry up in log view
                 if self.git.log_highlighted_entry > 0:
                     self.git.log_highlighted_entry -= 1
-                    self._render_log_with_highlight()
-                    self._scroll_to_log_entry()
+                    self._render_log_with_highlight()  # type: ignore[attr-defined]
+                    self._scroll_to_log_entry()  # type: ignore[attr-defined]
             elif self.git.blame_viewing and self.git.blame_output:
                 # Move highlighted line up in blame view
                 if self.git.blame_highlighted_line > 0:
                     self.git.blame_highlighted_line -= 1
-                    self._render_blame_with_highlight()
-                    self._scroll_to_blame_line()
+                    self._render_blame_with_highlight()  # type: ignore[attr-defined]
+                    self._scroll_to_blame_line()  # type: ignore[attr-defined]
             elif self._dir_listing_entries:
                 # Move highlighted entry up in directory listing
                 if self._dir_listing_highlighted > 0:
@@ -373,11 +368,11 @@ class KeyHandlersMixin:
                 scroll_container.scroll_home()
             elif self.git.log_viewing and self.git.log_entries:
                 self.git.log_highlighted_entry = 0
-                self._render_log_with_highlight()
+                self._render_log_with_highlight()  # type: ignore[attr-defined]
                 scroll_container.scroll_home()
             elif self.git.blame_viewing and self.git.blame_output:
                 self.git.blame_highlighted_line = 0
-                self._render_blame_with_highlight()
+                self._render_blame_with_highlight()  # type: ignore[attr-defined]
                 scroll_container.scroll_home()
             elif self._dir_listing_entries:
                 self._dir_listing_highlighted = 0
@@ -395,12 +390,12 @@ class KeyHandlersMixin:
                 scroll_container.scroll_end()
             elif self.git.log_viewing and self.git.log_entries:
                 self.git.log_highlighted_entry = len(self.git.log_entries) - 1
-                self._render_log_with_highlight()
+                self._render_log_with_highlight()  # type: ignore[attr-defined]
                 scroll_container.scroll_end()
             elif self.git.blame_viewing and self.git.blame_output:
                 lines = self.git.blame_output.split("\n")
                 self.git.blame_highlighted_line = len(lines) - 1
-                self._render_blame_with_highlight()
+                self._render_blame_with_highlight()  # type: ignore[attr-defined]
                 scroll_container.scroll_end()
             elif self._dir_listing_entries:
                 self._dir_listing_highlighted = len(self._dir_listing_entries) - 1
@@ -458,15 +453,15 @@ class KeyHandlersMixin:
             elif self.git.log_viewing and self.git.log_entries:
                 if self.git.log_highlighted_entry < len(self.git.log_entries) - 1:
                     self.git.log_highlighted_entry += 1
-                    self._render_log_with_highlight()
-                    self._scroll_to_log_entry()
+                    self._render_log_with_highlight()  # type: ignore[attr-defined]
+                    self._scroll_to_log_entry()  # type: ignore[attr-defined]
             elif self.git.blame_viewing and self.git.blame_output:
                 lines = self.git.blame_output.split("\n")
                 max_line = len(lines) - 1
                 if self.git.blame_highlighted_line < max_line:
                     self.git.blame_highlighted_line += 1
-                    self._render_blame_with_highlight()
-                    self._scroll_to_blame_line()
+                    self._render_blame_with_highlight()  # type: ignore[attr-defined]
+                    self._scroll_to_blame_line()  # type: ignore[attr-defined]
             elif self._dir_listing_entries:
                 if self._dir_listing_highlighted < len(self._dir_listing_entries) - 1:
                     self._dir_listing_highlighted += 1
@@ -489,13 +484,13 @@ class KeyHandlersMixin:
             elif self.git.log_viewing and self.git.log_entries:
                 if self.git.log_highlighted_entry > 0:
                     self.git.log_highlighted_entry -= 1
-                    self._render_log_with_highlight()
-                    self._scroll_to_log_entry()
+                    self._render_log_with_highlight()  # type: ignore[attr-defined]
+                    self._scroll_to_log_entry()  # type: ignore[attr-defined]
             elif self.git.blame_viewing and self.git.blame_output:
                 if self.git.blame_highlighted_line > 0:
                     self.git.blame_highlighted_line -= 1
-                    self._render_blame_with_highlight()
-                    self._scroll_to_blame_line()
+                    self._render_blame_with_highlight()  # type: ignore[attr-defined]
+                    self._scroll_to_blame_line()  # type: ignore[attr-defined]
             elif self._dir_listing_entries:
                 if self._dir_listing_highlighted > 0:
                     self._dir_listing_highlighted -= 1
@@ -527,19 +522,19 @@ class KeyHandlersMixin:
             # Check if we came from blame view or log view
             if self.git.blame_viewing:
                 # Go back to blame view
-                self._render_blame_with_highlight()
-                self._scroll_to_blame_line()
+                self._render_blame_with_highlight()  # type: ignore[attr-defined]
+                self._scroll_to_blame_line()  # type: ignore[attr-defined]
             else:
                 # Go back to log view
-                self._render_log_with_highlight()
-                self._scroll_to_log_entry()
+                self._render_log_with_highlight()  # type: ignore[attr-defined]
+                self._scroll_to_log_entry()  # type: ignore[attr-defined]
         elif self.git.log_viewing and self.git.log_search_query:
             # Clear git log search (but stay in git log view)
             event.prevent_default()
             self.git.log_search_query = ""
             self.git.log_search_matches = []
             self.git.log_current_match_index = -1
-            self._render_log_with_highlight()
+            self._render_log_with_highlight()  # type: ignore[attr-defined]
             self.notify("Search cleared")
         elif self.git.log_viewing:
             # Close git log display and restore file content
@@ -561,7 +556,7 @@ class KeyHandlersMixin:
             self.git.blame_search_query = ""
             self.git.blame_search_matches = []
             self.git.blame_current_match_index = -1
-            self._render_blame_with_highlight()
+            self._render_blame_with_highlight()  # type: ignore[attr-defined]
             self.notify("Search cleared")
         elif self.git.blame_viewing:
             # Close git blame display and restore file content
@@ -710,10 +705,10 @@ class KeyHandlersMixin:
             # In content panel: handle special views
             if self.git.log_viewing and not self.git.commit_viewing:
                 # Show the highlighted commit details
-                self._show_git_commit()
+                self._show_git_commit()  # type: ignore[attr-defined]
             elif self.git.blame_viewing and not self.git.commit_viewing:
                 # Show the commit for the highlighted blame line
-                self._show_blame_commit()
+                self._show_blame_commit()  # type: ignore[attr-defined]
             elif self._dir_listing_entries and 0 <= self._dir_listing_highlighted < len(
                 self._dir_listing_entries
             ):

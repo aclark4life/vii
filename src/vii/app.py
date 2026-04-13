@@ -1097,8 +1097,6 @@ class Vii(KeyHandlersMixin, GitHandlersMixin, App):
         # Reset search state
         self.search_matches = []
         self.current_match_index = -1
-        self.git.reset_log()
-        self.git.reset_blame()
 
         try:
             tree = self._get_tree()
@@ -1114,9 +1112,13 @@ class Vii(KeyHandlersMixin, GitHandlersMixin, App):
                 # Git repo changed - update git info
                 self._update_git_info(current_dir)
 
-            # Skip if already displaying this path
+            # Skip if already displaying this path (preserves blame/log views)
             if path == self._displayed_path:
                 return
+
+            # Reset special views only when navigating to a different file
+            self.git.reset_log()
+            self.git.reset_blame()
 
             content_display = self._get_content_display()
             scroll_container = self._get_scroll_container()
@@ -1273,9 +1275,14 @@ class Vii(KeyHandlersMixin, GitHandlersMixin, App):
                 self.original_content = content
                 self.search_matches = []
                 self.current_match_index = -1
+                self._displayed_path = path
+
+                # Don't overwrite blame/log views opened while content was loading
+                if self.git.blame_viewing or self.git.log_viewing:
+                    return
+
                 self.git.reset_log()
                 self.git.reset_blame()
-                self._displayed_path = path
 
                 # Render with highlight at line 0
                 self._render_file_content_with_highlight()

@@ -39,7 +39,10 @@ class GitHandlersMixin:
     theme: str
 
     # Methods from ViiProtocol (provided by host class)
-    # Using Any for Textual framework methods to avoid signature conflicts
+    # NOTE: Do NOT stub Textual framework methods (push_screen, etc.) here unless
+    # Vii (app.py) overrides them — Vii is first in the MRO so its definition wins.
+    # notify is safe to stub because Vii.notify (app.py:213) always takes precedence.
+    # See commit bcd9776 / fa2be3a for the push_screen incident.
     def notify(self, *args: Any, **kwargs: Any) -> None: ...
     def query_one(self, *args: Any, **kwargs: Any) -> Any: ...
     def query(self, *args: Any, **kwargs: Any) -> Any: ...
