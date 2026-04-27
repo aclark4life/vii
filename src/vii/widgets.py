@@ -50,7 +50,7 @@ class CommandPalette(TextualCommandPalette):
         ),
         Binding("enter", "select_or_submit", "Select/Submit", show=False, priority=True),
     ]
-    """Extended bindings that add j/k navigation and enter handling."""
+    """Extended bindings that add tab/shift+tab navigation and enter handling."""
 
     def on_key(self, event: events.Key) -> None:
         """Handle key events, especially ESC to close the palette."""

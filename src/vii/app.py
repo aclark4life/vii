@@ -1126,7 +1126,7 @@ class Vii(KeyHandlersMixin, GitHandlersMixin, App):
                 return
 
             if path.is_dir():
-                self._dir_listing_highlighted = 0 if path.iterdir() else -1
+                self._dir_listing_highlighted = 0 if any(path.iterdir()) else -1
                 content_display.update(
                     self._render_directory_listing(path, self._dir_listing_highlighted)
                 )
