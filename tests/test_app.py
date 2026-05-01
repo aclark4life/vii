@@ -487,9 +487,15 @@ class TestVii:
             scroll = app._get_scroll_container()
 
             # Simulate being in git commit viewing mode
+            from vii.git_state import GitLogEntry
+
             app.git.log_viewing = True
             app.git.commit_viewing = True
-            app.git.log_entries = [(0, 2), (3, 5), (6, 8)]
+            app.git.log_entries = [
+                GitLogEntry("a" * 40, "aaaaaaa", "Alice", "2024-01-01", "msg1", 0, 2),
+                GitLogEntry("b" * 40, "bbbbbbb", "Bob", "2024-01-02", "msg2", 3, 5),
+                GitLogEntry("c" * 40, "ccccccc", "Carol", "2024-01-03", "msg3", 6, 8),
+            ]
             app.git.log_highlighted_entry = 1
 
             # Focus the content panel
@@ -547,9 +553,15 @@ class TestVii:
 
             # Manually set up git commit viewing state
             # (The actual triggering mechanism via actions is flaky in tests)
+            from vii.git_state import GitLogEntry
+
             app.git.log_viewing = True
             app.git.commit_viewing = True
-            app.git.log_entries = [(0, 2), (3, 5), (6, 8)]  # Dummy entries
+            app.git.log_entries = [
+                GitLogEntry("a" * 40, "aaaaaaa", "Alice", "2024-01-01", "msg1", 0, 2),
+                GitLogEntry("b" * 40, "bbbbbbb", "Bob", "2024-01-02", "msg2", 3, 5),
+                GitLogEntry("c" * 40, "ccccccc", "Carol", "2024-01-03", "msg3", 6, 8),
+            ]
             app.git.log_highlighted_entry = 1
             await pilot.pause()
 
