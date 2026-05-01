@@ -609,6 +609,76 @@ class TestVii:
             commit_hash = app._get_blame_line_commit_hash()
             assert commit_hash is None
 
+    @pytest.mark.asyncio
+    async def test_quit_dialog_focus(self, tmp_path):
+        """Test that the quit dialog opens with Cancel focused and Enter dismisses it."""
+        (tmp_path / "test.txt").write_text("hello")
+        app = Vii(start_path=tmp_path)
+
+        async with app.run_test() as pilot:
+            await pilot.pause()
+
+            # Press q to open the quit dialog
+            await pilot.press("q")
+            await pilot.pause()
+            await pilot.pause()
+
+            from textual.screen import ModalScreen
+            from textual.widgets import Button
+
+            assert isinstance(app.screen, ModalScreen), "Quit dialog should be a modal"
+            modal = app.screen
+            cancel = modal.query_one("#cancel", Button)
+            quit_btn = modal.query_one("#quit", Button)
+
+            # Cancel button should have focus by default (AUTO_FOCUS = "#cancel")
+            assert cancel.has_focus, "Cancel button should have focus when dialog opens"
+            assert not quit_btn.has_focus
+
+            # Enter on focused Cancel button should dismiss the dialog (not quit)
+            await pilot.press("enter")
+            for _ in range(3):
+                await pilot.pause()
+            assert len(app.screen_stack) == 1, "Dialog should be dismissed after Enter on Cancel"
+            assert not isinstance(app.screen, ModalScreen), "Should be back on main screen"
+
+    @pytest.mark.asyncio
+    async def test_quit_dialog_tab_navigation(self, tmp_path):
+        """Test that Tab moves focus between Quit and Cancel buttons."""
+        (tmp_path / "test.txt").write_text("hello")
+        app = Vii(start_path=tmp_path)
+
+        async with app.run_test() as pilot:
+            await pilot.pause()
+
+            await pilot.press("q")
+            await pilot.pause()
+            await pilot.pause()
+
+            from textual.widgets import Button
+
+            modal = app.screen
+            cancel = modal.query_one("#cancel", Button)
+            quit_btn = modal.query_one("#quit", Button)
+
+            assert cancel.has_focus, "Cancel should have initial focus"
+
+            # Tab should move focus to Quit
+            await pilot.press("tab")
+            await pilot.pause()
+            assert quit_btn.has_focus, "Tab should move focus to Quit button"
+
+            # Tab again should cycle back to Cancel
+            await pilot.press("tab")
+            await pilot.pause()
+            assert cancel.has_focus, "Tab should cycle back to Cancel button"
+
+            # Escape should dismiss without quitting
+            await pilot.press("escape")
+            for _ in range(2):
+                await pilot.pause()
+            assert len(app.screen_stack) == 1, "Escape should dismiss the dialog"
+
 
 class TestMain:
     """Test cases for the main entry point."""

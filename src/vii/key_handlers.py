@@ -5,6 +5,7 @@ from typing import TYPE_CHECKING, Any
 
 from textual import events
 from textual.containers import ScrollableContainer
+from textual.screen import ModalScreen
 from textual.widgets import DirectoryTree, Input, Static
 
 from .git_state import GitState
@@ -70,6 +71,15 @@ class KeyHandlersMixin:
 
     def on_key(self, event: events.Key) -> None:
         """Handle key presses for vi-style navigation."""
+        # Don't intercept keys when a modal screen is active (e.g., quit/delete dialogs).
+        # Calling prevent_default() here would block App._on_key from running, which
+        # prevents modal button bindings (e.g. Enter to press a Button) from firing.
+        try:
+            if isinstance(self.screen, ModalScreen):  # type: ignore[attr-defined]
+                return
+        except Exception:
+            pass
+
         # Handle keys when an Input widget has focus
         if self.focused and isinstance(self.focused, Input):
             if event.key == "escape":
@@ -131,8 +141,10 @@ class KeyHandlersMixin:
                 # Arrow keys are handled by the tree widget, but we still need to update display
                 # Use call_after_refresh to ensure the tree has processed the key first
                 self.call_after_refresh(self._schedule_content_update)  # type: ignore[attr-defined]
-        elif event.key in ("ctrl+f", "ctrl+d"):
-            # Page down (vim-style)
+        elif event.key in ("ctrl+f", "ctrl+d") or (
+            content_focused and event.key == "space"
+        ):
+            # Page down (vim-style; space also pages down in content panel)
             event.prevent_default()
             if content_focused:
                 # Move cursor by page in file content view
