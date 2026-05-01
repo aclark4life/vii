@@ -144,7 +144,7 @@ class Vii(KeyHandlersMixin, GitHandlersMixin, App):
     """
 
     BINDINGS = [
-        Binding("q", "quit", "Quit", priority=True),
+        Binding("q", "quit_or_focus_sidebar", "Quit", priority=True),
         Binding("ctrl+c", "quit", "Quit", show=False),
         Binding("tab", "focus_next", "Tab"),
         Binding("shift+tab", "focus_previous", "Shift+Tab", show=False),
@@ -1977,6 +1977,76 @@ class Vii(KeyHandlersMixin, GitHandlersMixin, App):
     def action_command_palette(self) -> None:
         """Open the command palette with our custom implementation."""
         self.push_screen(CommandPalette())
+
+    def action_quit_or_focus_sidebar(self) -> None:
+        """If the content panel has focus, return focus to the sidebar; otherwise confirm quit."""
+        scroll_container = self._get_scroll_container()
+        tree = self._get_tree()
+        if scroll_container and tree and scroll_container.has_focus:
+            tree.focus()
+            return
+        self._confirm_quit()
+
+    def _confirm_quit(self) -> None:
+        """Show a modal confirming the user wants to quit."""
+        from textual.containers import Horizontal
+        from textual.screen import ModalScreen
+        from textual.widgets import Button, Static
+
+        class ConfirmQuitScreen(ModalScreen[bool]):
+            """Modal screen for confirming app quit."""
+
+            AUTO_FOCUS = "#cancel"
+
+            BINDINGS = [
+                Binding("escape", "cancel", "Cancel", priority=True),
+                Binding("q", "cancel", "Cancel", priority=True),
+            ]
+
+            CSS = """
+            ConfirmQuitScreen {
+                align: center middle;
+            }
+            #dialog {
+                width: 60;
+                height: auto;
+                border: thick $warning;
+                background: $surface;
+                padding: 1 2;
+            }
+            #dialog Static {
+                width: 100%;
+                content-align: center middle;
+            }
+            #buttons {
+                width: 100%;
+                height: auto;
+                align: center middle;
+                margin-top: 1;
+            }
+            #buttons Button {
+                margin: 0 1;
+            }
+            """
+
+            def compose(self):
+                with Vertical(id="dialog"):
+                    yield Static("Are you sure you want to quit?")
+                    with Horizontal(id="buttons"):
+                        yield Button("Quit", variant="error", id="quit")
+                        yield Button("Cancel", variant="primary", id="cancel")
+
+            def on_button_pressed(self, event: Button.Pressed) -> None:
+                self.dismiss(event.button.id == "quit")
+
+            def action_cancel(self) -> None:
+                self.dismiss(False)
+
+        def handle_quit(confirmed: bool) -> None:
+            if confirmed:
+                self.exit()
+
+        self.push_screen(ConfirmQuitScreen(), handle_quit)
 
     def action_edit_file(self) -> None:
         """Open the currently selected file in the editor (or image viewer for images)."""
