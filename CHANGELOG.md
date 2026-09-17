@@ -8,6 +8,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Changed
+- Sidebar resizing (drag) and theme changes no longer auto-save to
+  `config.toml`; config is now only written to disk via the explicit
+  "Save Config" command (in-memory settings still update immediately so
+  a later explicit save captures your latest sidebar width/theme)
 - `q` now confirms quit directly from the content panel instead of first
   returning focus to the sidebar; `escape` remains the way to return
   focus to the sidebar from the content panel

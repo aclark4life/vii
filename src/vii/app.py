@@ -237,12 +237,14 @@ class Vii(KeyHandlersMixin, GitHandlersMixin, App):
             kwargs["timeout"] = timeout
         super().notify(message, **kwargs)
 
-    def set_sidebar_width(self, width: int, save: bool = True) -> None:
+    def set_sidebar_width(self, width: int, save: bool = False) -> None:
         """Set the sidebar width, with bounds checking.
 
         Args:
             width: The desired width in columns.
-            save: Whether to save the width to config (default True).
+            save: Whether to also persist the width to config.toml immediately
+                (default False). The in-memory config is always kept in sync
+                so an explicit "save config" command will still capture it.
         """
         # Get screen width and set minimum/maximum bounds
         screen_width = self.size.width
@@ -253,9 +255,9 @@ class Vii(KeyHandlersMixin, GitHandlersMixin, App):
         new_width = max(min_width, min(width, max_width))
         self.sidebar_width = new_width
 
-        # Save to config
+        # Keep in-memory config in sync, but only write to disk if requested.
+        self._config.sidebar_width = new_width
         if save:
-            self._config.sidebar_width = new_width
             self._config.save()
 
     def watch_sidebar_width(self, width: int) -> None:
@@ -601,15 +603,14 @@ class Vii(KeyHandlersMixin, GitHandlersMixin, App):
         # If "random" was selected from theme picker, apply a random real theme
         if self.theme == "random":
             self._apply_random_theme()
-            # Save "random" to config so it picks a new theme on each startup
+            # Track "random" in the in-memory config so it picks a new theme
+            # on each startup if the user explicitly saves config later.
             self._config.theme = "random"
-            self._config.save()
             return
 
         # Don't overwrite config if it's set to "random" (we're just applying a random theme)
         if self._config.theme != "random":
             self._config.theme = self.theme
-            self._config.save()
 
         # Re-render the content with the new syntax theme
         self._update_content_display()
@@ -2364,9 +2365,8 @@ class Vii(KeyHandlersMixin, GitHandlersMixin, App):
         """Change the application theme."""
         try:
             self.theme = theme_name
-            # Save theme to config
+            # Track the new theme in-memory; only persisted via explicit save.
             self._config.theme = theme_name
-            self._config.save()
             self.notify(f"Theme changed to {theme_name}")
             # Re-render content with new syntax theme
             self._update_content_display()
