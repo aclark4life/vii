@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.1.0a7] - 2026-09-16
+
 ### Changed
 - Sidebar resizing (drag) and theme changes no longer auto-save to
   `config.toml`; config is now only written to disk via the explicit
@@ -216,7 +218,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Pre-commit hooks for code quality with ruff (replaced black, flake8, and isort)
 - Comprehensive test suite
 
-[Unreleased]: https://github.com/aclark4life/vii/compare/v0.1.0a6...HEAD
+[Unreleased]: https://github.com/aclark4life/vii/compare/v0.1.0a7...HEAD
+[0.1.0a7]: https://github.com/aclark4life/vii/compare/v0.1.0a6...v0.1.0a7
 [0.1.0a6]: https://github.com/aclark4life/vii/compare/v0.1.0a5...v0.1.0a6
 [0.1.0a5]: https://github.com/aclark4life/vii/compare/v0.1.0a4...v0.1.0a5
 [0.1.0a4]: https://github.com/aclark4life/vii/compare/v0.1.0a3...v0.1.0a4
