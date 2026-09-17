@@ -918,6 +918,15 @@ class Vii(KeyHandlersMixin, GitHandlersMixin, App):
 
         path = self._displayed_path
         content = self.original_content
+
+        # Image previews are pre-rendered (ANSI art) and cached as-is; they
+        # don't go through syntax highlighting or line-highlight logic.
+        if is_image_file(path):
+            cached = self._rendered_cache.get(path)
+            rendered = cached[1] if cached else None
+            content_display.update(rendered if rendered is not None else content)
+            return
+
         width = max(scroll_container.size.width - 4, 80)
 
         # Try tree-sitter first
