@@ -33,7 +33,11 @@ def is_image_file(path: Path) -> bool:
 
 
 def render_image_preview(path: Path, size: int = 30) -> tuple[str, None] | tuple[None, str]:
-    """Render an image file for terminal preview using term-image.
+    """Render an image file for terminal preview using Pillow.
+
+    Renders the image as a grid of ANSI truecolor half-block ("▀") characters,
+    using the foreground color for the top pixel and the background color for
+    the bottom pixel of each terminal cell.
 
     Args:
         path: Path to the image file
@@ -43,15 +47,43 @@ def render_image_preview(path: Path, size: int = 30) -> tuple[str, None] | tuple
         A tuple of (rendered string, None) on success, or (None, error_message) on failure.
     """
     try:
-        from term_image.image import from_file
+        from PIL import Image
     except ImportError:
-        return None, "Missing dependency: term-image"
+        return None, "Missing dependency: Pillow"
 
     try:
-        img = from_file(path)
-        img.set_size(width=size)
-        # Convert to ANSI string for Rich/Textual compatibility
-        return str(img), None
+        with Image.open(path) as img:
+            img = img.convert("RGB")
+            orig_width, orig_height = img.size
+            if orig_width == 0 or orig_height == 0:
+                return None, "Invalid image dimensions"
+
+            new_width = max(size, 1)
+            # Terminal character cells are roughly twice as tall as wide, and we
+            # pack two source rows into each cell (top/bottom half-block), so
+            # the effective vertical scale factor is 0.5.
+            new_height = max(int(orig_height / orig_width * new_width * 0.5), 1)
+            # Round up to an even number of rows so each pair has a bottom pixel.
+            if new_height % 2:
+                new_height += 1
+
+            img = img.resize((new_width, new_height))
+            pixels = list(img.getdata())
+
+            lines = []
+            for y in range(0, new_height, 2):
+                parts = []
+                for x in range(new_width):
+                    top = pixels[y * new_width + x]
+                    bottom_index = (y + 1) * new_width + x
+                    bottom = pixels[bottom_index] if bottom_index < len(pixels) else (0, 0, 0)
+                    parts.append(
+                        f"\x1b[38;2;{top[0]};{top[1]};{top[2]}m"
+                        f"\x1b[48;2;{bottom[0]};{bottom[1]};{bottom[2]}m\u2580"
+                    )
+                lines.append("".join(parts) + "\x1b[0m")
+
+            return "\n".join(lines), None
     except FileNotFoundError:
         return None, f"File not found: {path}"
     except PermissionError:
