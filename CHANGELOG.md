@@ -8,6 +8,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Changed
+- Default sidebar/content split changed from 1/3-2/3 to 20/80 for a
+  wider content preview area on first run (only applies when no sidebar
+  width has been saved yet)
 - Replaced `term-image` with a direct Pillow-based ANSI renderer for image
   previews, removing the `pillow<11` constraint it imposed and allowing
   Pillow to resolve to current releases

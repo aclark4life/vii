@@ -36,7 +36,7 @@ class Config:
     """Configuration settings for vii."""
 
     theme: str = "textual-dark"
-    sidebar_width: int | None = None  # None means auto (1/3 of screen width)
+    sidebar_width: int | None = None  # None means auto (1/5 of screen width, 20/80 split)
     animate_scroll: bool = True  # Enable/disable scroll animations
 
     @classmethod

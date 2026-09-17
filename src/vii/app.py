@@ -501,11 +501,11 @@ class Vii(KeyHandlersMixin, GitHandlersMixin, App):
         elif self._config.theme:
             self.theme = self._config.theme
 
-        # Use saved sidebar width or default to 1/3 of screen
+        # Use saved sidebar width or default to 20% of screen (20/80 split)
         if self._config.sidebar_width is not None:
             initial_width = self._config.sidebar_width
         else:
-            initial_width = max(20, self.size.width // 3)
+            initial_width = max(20, self.size.width // 5)
         self.sidebar_width = initial_width
 
         # Update header with git info
