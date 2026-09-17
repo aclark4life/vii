@@ -6,12 +6,9 @@ from pathlib import Path
 
 from .constants import (
     GIT_LOG_PAGE_SIZE,
-    TIMEOUT_INTERACTIVE,
     TIMEOUT_LONG,
     TIMEOUT_MEDIUM,
-    TIMEOUT_NETWORK,
     TIMEOUT_QUICK,
-    TIMEOUT_STANDARD,
 )
 
 
@@ -438,7 +435,9 @@ def git_checkout_remote_branch(path: Path, remote_branch: str) -> tuple[bool, st
         return (False, "Git command not found")
 
 
-def get_git_log(path: Path, max_count: int = GIT_LOG_PAGE_SIZE, skip: int = 0) -> tuple[str, str] | None:
+def get_git_log(
+    path: Path, max_count: int = GIT_LOG_PAGE_SIZE, skip: int = 0
+) -> tuple[str, str] | None:
     """Get git log with both machine-readable and pretty formatted output.
 
     This function fetches the log twice to avoid brittle parsing:

@@ -141,9 +141,7 @@ class KeyHandlersMixin:
                 # Arrow keys are handled by the tree widget, but we still need to update display
                 # Use call_after_refresh to ensure the tree has processed the key first
                 self.call_after_refresh(self._schedule_content_update)  # type: ignore[attr-defined]
-        elif event.key in ("ctrl+f", "ctrl+d") or (
-            content_focused and event.key == "space"
-        ):
+        elif event.key in ("ctrl+f", "ctrl+d") or (content_focused and event.key == "space"):
             # Page down (vim-style; space also pages down in content panel)
             event.prevent_default()
             if content_focused:

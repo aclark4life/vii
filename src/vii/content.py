@@ -100,7 +100,9 @@ def render_image_preview(path: Path, size: int = 30) -> tuple[str, None] | tuple
         return None, f"Error: {e}"
 
 
-def read_file_content(path: Path, max_size: int = FILE_MAX_SIZE, max_lines: int = FILE_MAX_LINES) -> str:
+def read_file_content(
+    path: Path, max_size: int = FILE_MAX_SIZE, max_lines: int = FILE_MAX_LINES
+) -> str:
     """Read file content, handling binary files and size limits.
 
     Args:

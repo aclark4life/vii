@@ -94,7 +94,7 @@ stats:
 test-perf:
     python -m pytest tests/test_performance.py -v
 
-# Run integration tests only  
+# Run integration tests only
 test-integration:
     python -m pytest tests/test_app.py::TestVii::test_jk_scrolls_in_git_commit_view_integration -v
 
