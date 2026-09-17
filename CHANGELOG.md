@@ -7,6 +7,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+- Replaced `term-image` with a direct Pillow-based ANSI renderer for image
+  previews, removing the `pillow<11` constraint it imposed and allowing
+  Pillow to resolve to current releases
+
 ## [0.1.0a6] - 2026-03-16
 
 ### Added
