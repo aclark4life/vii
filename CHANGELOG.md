@@ -19,6 +19,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Transparent PNGs (e.g. with an alpha channel) no longer preview with a
   black background; transparent areas are now composited onto white
   before rendering
+- Pressing `q` while the quit (or delete) confirmation dialog is open no
+  longer stacks a duplicate dialog on top (visible as the screen getting
+  progressively darker); `q` now toggles the dialog closed like `escape`
 
 ## [0.1.0a6] - 2026-03-16
 

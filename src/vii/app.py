@@ -1989,6 +1989,21 @@ class Vii(KeyHandlersMixin, GitHandlersMixin, App):
 
     def action_quit_or_focus_sidebar(self) -> None:
         """If the content panel has focus, return focus to the sidebar; otherwise confirm quit."""
+        from textual.screen import ModalScreen
+
+        if isinstance(self.screen, ModalScreen):
+            # A modal (e.g. quit/delete confirmation) is already showing. This
+            # action is bound with priority=True at the App level, which means
+            # it runs *before* the modal's own "q" binding gets a chance
+            # (Textual checks priority bindings from the App down). Without
+            # this guard, pressing "q" again would stack a duplicate dialog
+            # on top instead of letting the modal handle it. Forward to the
+            # modal's own cancel action instead, so "q" dismisses it.
+            cancel = getattr(self.screen, "action_cancel", None)
+            if callable(cancel):
+                cancel()
+            return
+
         scroll_container = self._get_scroll_container()
         tree = self._get_tree()
         if scroll_container and tree and scroll_container.has_focus:
