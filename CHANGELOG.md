@@ -23,6 +23,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   longer stacks a duplicate dialog on top (visible as the screen getting
   progressively darker); `q` now toggles the dialog closed like `escape`
 
+### Removed
+- The "Cancel" button on the quit confirmation dialog; only "Quit" remains
+  and now has default focus, so pressing Enter confirms quit. `escape`/`q`
+  still dismiss the dialog without quitting.
+
 ## [0.1.0a6] - 2026-03-16
 
 ### Added

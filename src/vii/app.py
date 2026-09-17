@@ -2020,7 +2020,7 @@ class Vii(KeyHandlersMixin, GitHandlersMixin, App):
         class ConfirmQuitScreen(ModalScreen[bool]):
             """Modal screen for confirming app quit."""
 
-            AUTO_FOCUS = "#cancel"
+            AUTO_FOCUS = "#quit"
 
             BINDINGS = [
                 Binding("escape", "cancel", "Cancel", priority=True),
@@ -2058,7 +2058,6 @@ class Vii(KeyHandlersMixin, GitHandlersMixin, App):
                     yield Static("Are you sure you want to quit?")
                     with Horizontal(id="buttons"):
                         yield Button("Quit", variant="error", id="quit")
-                        yield Button("Cancel", variant="primary", id="cancel")
 
             def on_button_pressed(self, event: Button.Pressed) -> None:
                 self.dismiss(event.button.id == "quit")
