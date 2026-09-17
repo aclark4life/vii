@@ -71,6 +71,9 @@ textual console
 textual run --dev src/vii/app.py
 ```
 
+See [CONTRIBUTING.md](CONTRIBUTING.md) for details on running tests,
+linting, and the release process.
+
 ## License
 
 MIT
