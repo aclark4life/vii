@@ -144,7 +144,7 @@ class Vii(KeyHandlersMixin, GitHandlersMixin, App):
     """
 
     BINDINGS = [
-        Binding("q", "quit_or_focus_sidebar", "Quit", priority=True),
+        Binding("q", "confirm_quit_key", "Quit", priority=True),
         Binding("ctrl+c", "quit", "Quit", show=False),
         Binding("tab", "focus_next", "Tab"),
         Binding("shift+tab", "focus_previous", "Shift+Tab", show=False),
@@ -1987,8 +1987,8 @@ class Vii(KeyHandlersMixin, GitHandlersMixin, App):
         """Open the command palette with our custom implementation."""
         self.push_screen(CommandPalette())
 
-    def action_quit_or_focus_sidebar(self) -> None:
-        """If the content panel has focus, return focus to the sidebar; otherwise confirm quit."""
+    def action_confirm_quit_key(self) -> None:
+        """Confirm quit; if a confirmation modal is already open, forward 'q' to its cancel."""
         from textual.screen import ModalScreen
 
         if isinstance(self.screen, ModalScreen):
@@ -2004,11 +2004,6 @@ class Vii(KeyHandlersMixin, GitHandlersMixin, App):
                 cancel()
             return
 
-        scroll_container = self._get_scroll_container()
-        tree = self._get_tree()
-        if scroll_container and tree and scroll_container.has_focus:
-            tree.focus()
-            return
         self._confirm_quit()
 
     def _confirm_quit(self) -> None:

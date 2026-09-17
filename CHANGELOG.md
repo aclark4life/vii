@@ -8,6 +8,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Changed
+- `q` now confirms quit directly from the content panel instead of first
+  returning focus to the sidebar; `escape` remains the way to return
+  focus to the sidebar from the content panel
 - Default sidebar/content split changed from 1/3-2/3 to 20/80 for a
   wider content preview area on first run (only applies when no sidebar
   width has been saved yet)
