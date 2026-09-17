@@ -12,6 +12,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   previews, removing the `pillow<11` constraint it imposed and allowing
   Pillow to resolve to current releases
 
+### Fixed
+- Image previews now actually render in the content panel instead of
+  showing only a `[Image: filename]` placeholder; the pre-rendered image
+  was being discarded on navigation and cache-hit code paths
+- Transparent PNGs (e.g. with an alpha channel) no longer preview with a
+  black background; transparent areas are now composited onto white
+  before rendering
+
 ## [0.1.0a6] - 2026-03-16
 
 ### Added
