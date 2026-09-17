@@ -53,7 +53,15 @@ def render_image_preview(path: Path, size: int = 30) -> tuple[str, None] | tuple
 
     try:
         with Image.open(path) as img:
-            img = img.convert("RGB")
+            if img.mode in ("RGBA", "LA") or (img.mode == "P" and "transparency" in img.info):
+                # Composite onto a white background so transparent areas
+                # don't turn black when the alpha channel is discarded.
+                rgba = img.convert("RGBA")
+                background = Image.new("RGB", rgba.size, (255, 255, 255))
+                background.paste(rgba, mask=rgba.split()[3])
+                img = background
+            else:
+                img = img.convert("RGB")
             orig_width, orig_height = img.size
             if orig_width == 0 or orig_height == 0:
                 return None, "Invalid image dimensions"
